@@ -1,0 +1,62 @@
+# ESP-IDF defaults for the Ganymede firmware (NimBLE).
+# Standalone ESP-IDF build: target is set by `idf.py set-target esp32s3|esp32c6`
+# (stored in sdkconfig). No PSRAM on the S3 SuperMini — do NOT enable SPIRAM.
+# See CLAUDE.md "Build / flash / monitor".
+# CONFIG_SPIRAM is not set
+
+# --- Console on native USB-Serial/JTAG (NOT UART) ---
+# This is a Kconfig "choice": select ONLY the JTAG option. Adding UART_NONE here
+# would resolve the choice to ESP_CONSOLE_NONE and silence stdout entirely.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# --- Flash ---
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_singleapp.csv"
+
+# --- Bluetooth: NimBLE host, BLE only ---
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# Roles: central + GATT client now; peripheral/server kept on for the later emulation phase.
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+
+# Security / bonding: legacy + Secure Connections, persistent bonds in NVS.
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=y
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_MAX_BONDS=3
+CONFIG_BT_NIMBLE_MAX_CCCDS=8
+
+# Connections / MTU.
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=3
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=256
+CONFIG_BT_NIMBLE_HOST_TASK_STACK_SIZE=8192
+
+# NimBLE host log level (INFO).
+CONFIG_BT_NIMBLE_LOG_LEVEL_INFO=y
+
+# --- BLE controller: scanning ---
+# Disable the controller-level scan duplicate filter. With it enabled and the
+# duplicate-cache refresh period at 0 (never refresh), a busy RF environment can
+# leave a specific sparse advertiser permanently invisible (its one cached entry
+# is never re-reported). The real De'Longhi remote is exactly such a sparse, bursty
+# low-power advertiser — the ESP32 sees a continuous nRF emulator fine but never the
+# real remote, while Linux/Android do. Host-side dedup (disc_params.filter_duplicates)
+# is used instead when needed.
+# CONFIG_BT_CTRL_BLE_SCAN_DUPL is not set
+# Bigger mbuf pool so bursty advert reports in busy RF are not dropped.
+CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT=50
+
+# --- Runtime safety ---
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_INT_WDT=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# On a crash, print the panic + backtrace then REBOOT (don't hang silently).
+# Without this, a fault during A/C pairing leaves the chip wedged with no trace.
+CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y
+CONFIG_ESP_PANIC_HANDLER_IRAM=y

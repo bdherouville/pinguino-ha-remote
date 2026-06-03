@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panneau CST — HTML/CSS/SVG</title>
+  <style>
+    :root {
+      --panel-w: min(94vw, 1180px);
+      --ink: #f6f8fb;
+      --ink-soft: rgba(246, 248, 251, .82);
+      --stroke: 3px;
+      --bg-0: #020509;
+      --bg-1: #071018;
+      --bg-2: #111820;
+      --edge: #05070a;
+      --glow: rgba(255, 255, 255, .22);
+      --shadow: rgba(0, 0, 0, .55);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% 12%, #ffffff 0 18%, #f3f5f8 44%, #e9edf2 100%);
+      padding: 32px;
+    }
+
+    .remote {
+      position: relative;
+      width: var(--panel-w);
+      aspect-ratio: 1.47 / 1;
+      border-radius: 56px;
+      overflow: hidden;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 6%, rgba(255,255,255,.23), transparent 18%),
+        radial-gradient(circle at 84% 8%, rgba(255,255,255,.16), transparent 19%),
+        linear-gradient(162deg, #1c2228 0%, #070d12 21%, #02060a 55%, #0b1118 100%);
+      border: 6px solid #05080c;
+      box-shadow:
+        0 34px 60px rgba(0,0,0,.26),
+        inset 0 0 0 3px rgba(255,255,255,.16),
+        inset 0 16px 28px rgba(255,255,255,.10),
+        inset 0 -18px 30px rgba(0,0,0,.55);
+    }
+
+    .remote::before {
+      content: "";
+      position: absolute;
+      inset: 9px 14px auto 14px;
+      height: 22%;
+      border-radius: 48px 48px 18px 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,.025) 68%, transparent);
+      pointer-events: none;
+      mix-blend-mode: screen;
+    }
+
+    .remote::after {
+      content: "";
+      position: absolute;
+      left: -7%;
+      right: -2%;
+      bottom: -1%;
+      height: 31%;
+      border-radius: 0 0 54px 54px;
+      background:
+        radial-gradient(ellipse at 83% 75%, rgba(255,255,255,.20), transparent 33%),
+        linear-gradient(168deg, rgba(255,255,255,.035) 0 40%, rgba(255,255,255,.12) 41% 64%, rgba(255,255,255,.055) 65% 100%);
+      border-top: 1px solid rgba(255,255,255,.18);
+      transform: skewY(-5deg);
+      transform-origin: left top;
+      pointer-events: none;
+    }
+
+    .top-row {
+      position: absolute;
+      top: 14.5%;
+      left: 16.5%;
+      right: 19%;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8%;
+      align-items: center;
+      z-index: 2;
+    }
+
+    .circle-button,
+    .power-button {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      border: var(--stroke) solid var(--ink);
+      border-radius: 999px;
+      background: rgba(255,255,255,.015);
+      box-shadow:
+        0 6px 12px rgba(0,0,0,.25),
+        inset 0 0 18px rgba(255,255,255,.025);
+    }
+
+    .circle-button { width: clamp(76px, 9.5vw, 118px); }
+    .power-button { width: clamp(88px, 10.3vw, 130px); }
+
+    .icon {
+      width: 56%;
+      height: 56%;
+      stroke: var(--ink);
+      fill: none;
+      stroke-width: 6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .icon.fan { width: 59%; height: 59%; stroke-width: 5.4; }
+    .icon.clock { width: 53%; height: 53%; }
+    .icon.eco { width: 34%; height: 64%; }
+    .icon.power { width: 52%; height: 52%; stroke-width: 6.5; }
+
+    .middle-row {
+      position: absolute;
+      top: 43.2%;
+      left: 9.8%;
+      right: 8.8%;
+      display: grid;
+      grid-template-columns: 1.34fr 1.04fr .22fr .45fr;
+      align-items: center;
+      gap: 4.4%;
+      z-index: 2;
+    }
+
+    .pill-control {
+      position: relative;
+      height: clamp(92px, 12vw, 128px);
+      border: var(--stroke) solid var(--ink);
+      border-radius: 999px;
+      display: grid;
+      align-items: center;
+      background: rgba(0,0,0,.03);
+      box-shadow: inset 0 0 18px rgba(255,255,255,.02);
+    }
+
+    .pill-control::before,
+    .split-control::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 18%;
+      bottom: 18%;
+      width: 2px;
+      background: rgba(255,255,255,.17);
+      transform: translateX(-50%);
+    }
+
+    .pill-control::after,
+    .split-control::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -5px;
+      bottom: -5px;
+      width: 24px;
+      background: var(--bg-0);
+      transform: translateX(-50%);
+    }
+
+    .mode-control {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .mode-control .eco-wrap,
+    .mode-control .mode-label,
+    .split-control .half {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      height: 100%;
+    }
+
+    .mode-label {
+      font-size: clamp(24px, 3.1vw, 38px);
+      line-height: 1;
+      letter-spacing: .015em;
+      font-weight: 500;
+    }
+
+    .split-control {
+      position: relative;
+      height: clamp(92px, 12vw, 128px);
+      border: var(--stroke) solid var(--ink);
+      border-radius: 999px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+    }
+
+    .split-control .chevron {
+      width: clamp(34px, 4vw, 50px);
+      height: clamp(34px, 4vw, 50px);
+      stroke: var(--ink);
+      stroke-width: 7.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .indicator {
+      justify-self: center;
+      width: clamp(42px, 4.5vw, 58px);
+      height: clamp(24px, 2.6vw, 32px);
+      border-radius: 999px;
+      background: rgba(0,0,0,.42);
+      border: 1px solid rgba(255,255,255,.24);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      box-shadow: inset 0 2px 6px rgba(255,255,255,.10), 0 4px 10px rgba(0,0,0,.28);
+    }
+
+    .indicator span {
+      width: clamp(7px, .85vw, 10px);
+      height: clamp(7px, .85vw, 10px);
+      border-radius: 50%;
+      background: var(--ink);
+      box-shadow: 0 0 12px rgba(255,255,255,.32);
+    }
+
+    .cst-logo {
+      position: absolute;
+      left: 7.2%;
+      bottom: 8.3%;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      grid-template-rows: auto auto auto;
+      column-gap: clamp(14px, 1.7vw, 22px);
+      align-items: center;
+      color: var(--ink);
+    }
+
+    .cst-logo svg {
+      grid-row: 1 / 3;
+      width: clamp(64px, 6.5vw, 84px);
+      height: clamp(64px, 6.5vw, 84px);
+      stroke: var(--ink);
+      fill: none;
+      stroke-width: 4.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .cst-title {
+      font-size: clamp(38px, 4.6vw, 58px);
+      line-height: .95;
+      letter-spacing: .02em;
+      font-weight: 600;
+    }
+
+    .cst-subtitle {
+      grid-column: 1 / 3;
+      margin-top: 6px;
+      font-size: clamp(17px, 2vw, 26px);
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: .035em;
+    }
+
+    .cst-tech {
+      grid-column: 1 / 3;
+      margin-top: 12px;
+      font-size: clamp(14px, 1.5vw, 20px);
+      line-height: 1;
+      font-weight: 600;
+      letter-spacing: .34em;
+    }
+
+    .blank-brand-area {
+      position: absolute;
+      right: 6%;
+      bottom: 3.8%;
+      width: 33%;
+      height: 11.5%;
+      border-radius: 999px;
+      background: linear-gradient(150deg, rgba(255,255,255,.11), rgba(255,255,255,.035));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -16px 28px rgba(0,0,0,.12);
+      z-index: 1;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 16px; }
+      .remote { border-radius: 34px; border-width: 4px; }
+      .top-row { left: 13%; right: 14%; top: 13%; gap: 5%; }
+      .middle-row {
+        top: 40%;
+        left: 8%;
+        right: 7%;
+        grid-template-columns: 1.35fr 1fr .18fr .42fr;
+        gap: 3%;
+      }
+      .cst-logo { left: 6%; bottom: 7%; transform: scale(.78); transform-origin: bottom left; }
+      .blank-brand-area { width: 29%; right: 6%; bottom: 4%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="remote" role="img" aria-label="Panneau de contrôle stylisé noir avec pictogrammes blancs en SVG, sans logo de marque à droite.">
+    <span class="sr-only">Maquette HTML/CSS avec icônes SVG inline.</span>
+
+    <section class="top-row" aria-hidden="true">
+      <div class="circle-button">
+        <svg class="icon" viewBox="0 0 100 100">
+          <path d="M55 22 L27 50 L55 78" />
+          <path d="M69 27 C79 36 80 49 70 61" />
+          <path d="M70 61 L79 61" />
+          <path d="M70 61 L70 51" />
+          <path d="M68 74 C58 66 57 53 66 41" />
+          <path d="M66 41 L57 41" />
+          <path d="M66 41 L66 51" />
+        </svg>
+      </div>
+
+      <div class="circle-button">
+        <svg class="icon" viewBox="0 0 100 100">
+          <path d="M18 72 H34 V55 H50 V38" />
+          <path d="M50 38 C50 25 61 19 73 23" />
+          <path d="M72 23 C60 33 62 43 73 51" />
+          <path d="M34 72 V43 H45" />
+          <path d="M18 72 V58" />
+        </svg>
+      </div>
+
+      <div class="circle-button">
+        <svg class="icon fan" viewBox="0 0 100 100">
+          <path d="M50 50 C35 38 34 20 47 20 C60 20 59 41 50 50 Z" />
+          <path d="M50 50 C62 35 80 34 80 47 C80 60 59 59 50 50 Z" />
+          <path d="M50 50 C65 62 66 80 53 80 C40 80 41 59 50 50 Z" />
+          <path d="M50 50 C38 65 20 66 20 53 C20 40 41 41 50 50 Z" />
+          <circle cx="50" cy="50" r="5" />
+        </svg>
+      </div>
+
+      <div class="circle-button">
+        <svg class="icon clock" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="31" />
+          <path d="M50 30 V51 H66" />
+        </svg>
+      </div>
+    </section>
+
+    <section class="middle-row" aria-hidden="true">
+      <div class="pill-control mode-control">
+        <div class="eco-wrap">
+          <svg class="icon eco" viewBox="0 0 100 120">
+            <path d="M31 98 H81 V47 L54 27 L25 48 V98" />
+            <path d="M21 52 L54 28 L88 52" />
+            <path d="M73 41 V28 H82 V48" />
+            <path d="M25 92 C5 76 8 53 31 38 C49 54 45 80 25 92 Z" />
+            <path d="M25 92 V58" />
+            <path d="M25 78 L15 68" />
+            <path d="M25 70 L34 60" />
+          </svg>
+        </div>
+        <div class="mode-label">MODE</div>
+      </div>
+
+      <div class="split-control">
+        <div class="half">
+          <svg class="chevron" viewBox="0 0 80 80">
+            <path d="M18 28 L40 52 L62 28" />
+          </svg>
+        </div>
+        <div class="half">
+          <svg class="chevron" viewBox="0 0 80 80">
+            <path d="M18 52 L40 28 L62 52" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="indicator"><span></span><span></span></div>
+
+      <div class="power-button">
+        <svg class="icon power" viewBox="0 0 100 100">
+          <path d="M50 18 V45" />
+          <path d="M34 32 C23 39 17 51 20 64 C24 80 39 89 55 86 C71 83 82 70 80 54 C78 44 72 36 64 31" />
+        </svg>
+      </div>
+    </section>
+
+    <section class="cst-logo" aria-hidden="true">
+      <svg viewBox="0 0 100 100">
+        <path d="M16 23 C5 37 5 63 16 77" />
+        <path d="M28 31 C20 42 20 58 28 69" />
+        <path d="M84 23 C95 37 95 63 84 77" />
+        <path d="M72 31 C80 42 80 58 72 69" />
+        <circle cx="50" cy="29" r="10" />
+        <path d="M36 51 C36 43 64 43 64 51 V72 H56 V91 H44 V72 H36 Z" />
+      </svg>
+      <div class="cst-title">CST</div>
+      <div class="cst-subtitle">COOL SURROUND</div>
+      <div class="cst-tech">TECHNOLOGY</div>
+    </section>
+
+    <div class="blank-brand-area" aria-hidden="true"></div>
+  </main>
+</body>
+</html>

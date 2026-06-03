@@ -1,0 +1,114 @@
+/*
+ * nice!nano (nRF52840) — out-of-tree board for the Ganymede emulator.
+ * Flash layout matches the Adafruit/nice!nano UF2 bootloader (app @ 0x26000).
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <nordic/nrf52840_qiaa.dtsi>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "nice!nano";
+	compatible = "nice,nano";
+
+	chosen {
+		zephyr,console = &cdc_acm_uart;
+		zephyr,shell-uart = &cdc_acm_uart;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &code_partition;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		/* SuperMini nRF52840: the GPIO-controllable user LED is the BLUE one
+		 * on P0.08 (the red LED near it is not on a driven pin). */
+		blue_led: led_0 {
+			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+			label = "Blue LED";
+		};
+	};
+
+	aliases {
+		led0 = &blue_led;
+		watchdog0 = &wdt0;
+	};
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/* No SoftDevice present: the Adafruit bootloader loads the app
+		 * right after the MBR at 0x1000. */
+		mbr_partition: partition@0 {
+			label = "mbr";
+			reg = <0x00000000 0x00001000>;
+		};
+		code_partition: partition@1000 {
+			label = "code";
+			reg = <0x00001000 0x000eb000>;
+		};
+		storage_partition: partition@ec000 {
+			label = "storage";
+			reg = <0x000ec000 0x00008000>;
+		};
+		boot_partition: partition@f4000 {
+			label = "adafruit_boot";
+			reg = <0x000f4000 0x0000c000>;
+		};
+	};
+};
+
+zephyr_udc0: &usbd {
+	compatible = "nordic,nrf-usbd";
+	status = "okay";
+
+	cdc_acm_uart: cdc_acm_uart {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
+
+/* UART to the ESP32 bridge (matches firmware/esp32_bridge uart_link.c):
+ * nRF TX=P0.22 -> ESP GPIO5 (RX); nRF RX=P0.20 <- ESP GPIO4 (TX); 115200 8N1.
+ * Heartbeat nRF P0.24 -> ESP GPIO6 (toggled ~1 Hz in firmware). */
+&pinctrl {
+	uart0_default: uart0_default {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 0, 22)>,
+				<NRF_PSEL(UART_RX, 0, 20)>;
+		};
+	};
+	uart0_sleep: uart0_sleep {
+		group1 {
+			psels = <NRF_PSEL(UART_TX, 0, 22)>,
+				<NRF_PSEL(UART_RX, 0, 20)>;
+			low-power-enable;
+		};
+	};
+};
+
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
+};

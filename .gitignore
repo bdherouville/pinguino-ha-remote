@@ -1,0 +1,36 @@
+# ---- Build output (regenerable) ----
+**/build/
+**/build_ncs/
+**/build_periph/
+.pio/
+firmware/esp32_bridge/managed_components/
+
+# ---- ESP-IDF generated config (keep sdkconfig.defaults) ----
+sdkconfig
+sdkconfig.old
+
+# ---- Python ----
+__pycache__/
+*.pyc
+.venv*/
+venv/
+
+# ---- Local-only secret: the emulator's clone target (your remote's address) ----
+firmware/nrf52_emulator/zephyr/src/clone_addr.h
+
+# ---- Reverse-engineering data: kept local-only, never committed ----
+# Immutable BLE captures + monitor logs may contain pairing material.
+captures/*
+!captures/README.md
+*.log
+*.pcap
+*.pcapng
+*.btsnoop
+*.snoop
+
+# ---- Editor / OS junk ----
+*~
+*.swp
+.DS_Store
+.idea/
+.vscode/

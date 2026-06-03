@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+
+CONFIG_ARM_MPU=y
+CONFIG_HW_STACK_PROTECTION=y
+
+CONFIG_GPIO=y
+CONFIG_PINCTRL=y
+
+# The nice!nano has NO 32.768 kHz crystal (no LFXO). Zephyr defaults the LF
+# clock to the external crystal, so LFCLK never starts and the BLE controller
+# never runs. Use the internal RC oscillator instead.
+CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC=y
+CONFIG_CLOCK_CONTROL_NRF_K32SRC_500PPM=y
+
+# Link the application at code_partition (0x26000) so the Adafruit/nice!nano
+# UF2 bootloader can load it, and emit a .uf2 for drag-drop flashing.
+CONFIG_USE_DT_CODE_PARTITION=y
+CONFIG_BUILD_OUTPUT_UF2=y
+CONFIG_BUILD_OUTPUT_UF2_FAMILY_ID="0xADA52840"
+
+# USB CDC ACM driver always overwrites the remote-wakeup option; keep it off.
+CONFIG_USB_DEVICE_REMOTE_WAKEUP=n

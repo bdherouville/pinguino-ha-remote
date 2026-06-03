@@ -1,0 +1,10 @@
+CONFIG_IDF_TARGET="esp32s3"
+
+# Larger app partition (Wi-Fi + HTTP server + led_strip don't fit the 1 MB default).
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# HTTP server: allow a few more URI handlers and a longer request header.
+CONFIG_HTTPD_MAX_URI_HANDLERS=16
+
+# Console on the native USB-Serial/JTAG (the S3 super-mini flash/log path).
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

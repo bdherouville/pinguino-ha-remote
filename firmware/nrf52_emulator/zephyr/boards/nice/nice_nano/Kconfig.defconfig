@@ -1,0 +1,35 @@
+# nice!nano board defaults
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_NICE_NANO
+
+# The Adafruit/nice!nano UF2 bootloader loads the application at the start of
+# code_partition (0x26000). CONFIG_USE_DT_CODE_PARTITION (set in the board
+# _defconfig) derives FLASH_LOAD_OFFSET from that partition automatically.
+
+# nice!nano has no UART pins broken out for a console; use USB CDC ACM.
+config USB_DEVICE_STACK
+	default y
+
+config USB_CDC_ACM
+	default y if SERIAL
+
+config SERIAL
+	default y
+
+config CONSOLE
+	default y
+
+config UART_CONSOLE
+	default CONSOLE
+
+config UART_LINE_CTRL
+	default y
+
+config USB_DEVICE_INITIALIZE_AT_BOOT
+	default y if CONSOLE
+
+config BT_CTLR
+	default BT
+
+endif # BOARD_NICE_NANO
