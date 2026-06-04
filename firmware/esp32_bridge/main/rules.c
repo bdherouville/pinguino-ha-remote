@@ -132,8 +132,12 @@ bool rules_set(const rule_t *in, int count)
     rule_t v[RULES_MAX];
     for (int i = 0; i < count; i++) {
         v[i] = in[i];
-        if (v[i].enabled && !uart_link_valid_btn(v[i].action)) {
-            ESP_LOGW(TAG, "rejecting rules: rule %d has an invalid/empty action", i);
+        // Validate the action for EVERY rule. An enabled rule must name a valid button; a
+        // disabled one may be empty but never arbitrary text — its action is echoed verbatim
+        // into the /api/rules JSON, so a stray quote/backslash would corrupt that response.
+        bool ok_btn = uart_link_valid_btn(v[i].action);   // false for "" too
+        if (v[i].enabled ? !ok_btn : (v[i].action[0] && !ok_btn)) {
+            ESP_LOGW(TAG, "rejecting rules: rule %d has an invalid action", i);
             return false;
         }
         if (v[i].enabled && v[i].cooldown_s < RULE_MIN_COOLDOWN_S)
