@@ -281,11 +281,18 @@ static void force_subscribe(struct bt_conn *conn)
 
 /* ---- advertising ---------------------------------------------------------- */
 
+/* The Cypress manufacturer data (company 0x0131 + key 3b 04) is in BOTH the
+ * primary ADV and the scan response. A Cypress/CYSPP central filters which
+ * peripheral to connect to by this key in the ADVERTISEMENT packet — and in the
+ * pairing-mode capture the AC never sent a SCAN_REQ, so it would never read a
+ * scan-response-only key. Carrying it in ad[] lets the AC's passive scan match.
+ * (ad[] totals exactly 31 bytes — the legacy advert limit.) */
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 	BT_DATA_BYTES(BT_DATA_UUID16_SOME, 0x0a, 0x18, 0x0f, 0x18, 0x1a, 0x18),
 	BT_DATA_BYTES(BT_DATA_GAP_APPEARANCE, 0xc1, 0x03),
+	BT_DATA_BYTES(BT_DATA_MANUFACTURER_DATA, 0x31, 0x01, 0x3b, 0x04),
 };
 static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_MANUFACTURER_DATA, 0x31, 0x01, 0x3b, 0x04),
