@@ -27,6 +27,13 @@
   ul#aps li:hover { background:#0d1117; }
   .pins-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin:8px 0; }
   .pins-grid label { display:flex; flex-direction:column; font-size:12px; color:var(--mut); }
+  .rule { display:flex; flex-wrap:wrap; align-items:center; gap:6px; border:1px solid #2b3543;
+          border-radius:8px; padding:8px; margin:8px 0; font-size:13px; }
+  .rule select { width:auto; margin-top:0; padding:6px; background:#0d1117; color:var(--fg);
+                 border:1px solid #2b3543; border-radius:6px; }
+  .rule input { width:56px; margin-top:0; padding:6px; }
+  .rule input[type=checkbox] { width:auto; }
+  .rule .rm { width:auto; margin-top:0; margin-left:auto; padding:6px 10px; }
 
   /* ---- remote panel (HTML/CSS/SVG, scales with its container) ---- */
   .remote { position:relative; container-type:inline-size; width:100%; aspect-ratio:1.42 / 1;
@@ -231,6 +238,17 @@
     <p class="small" id="pinsMsg"></p>
   </div>
 
+  <div class="card" id="autoCard">
+    <h2>Automatisation (présence)</h2>
+    <p class="small">Capteur LD2410 — présence : <b id="presLive">—</b> <span id="presSecs"></span></p>
+    <div id="ruleList"></div>
+    <button class="ui" onclick="addRule()">+ Ajouter une règle</button>
+    <button class="ui" onclick="saveRules()">Enregistrer les règles</button>
+    <p class="small">« Présence/Absence maintenue ≥ N min → appuyer sur une touche », avec un délai
+      anti-répétition (cooldown).</p>
+    <p class="small" id="rulesMsg"></p>
+  </div>
+
   <div class="card" id="pairCard">
     <h2>Appariement</h2>
     <button class="ui" onclick="pairing(false)">Apparier (mode appairage)</button>
@@ -278,6 +296,12 @@ async function refresh(){
       : ('Non connecté — point d’accès "'+s.ap+'" actif pour la configuration.');
     $('#mqttState').textContent = s.mqtt_host
       ? ((s.mqtt?'Connecté ✓':'Déconnecté')+' — '+s.mqtt_host) : 'Non configuré';
+
+    // presence (automation card)
+    if ($('#presLive')) {
+      $('#presLive').textContent = s.ld ? (s.presence ? 'occupé' : 'vide') : 'capteur absent';
+      $('#presSecs').textContent = (s.ld && s.presence) ? '· '+s.presence_s+' s' : '';
+    }
   } catch(e){}
 }
 async function scan(){
@@ -329,7 +353,64 @@ async function reboot(){
   try { await fetch('/api/reboot', {method:'POST'}); $('#pinsMsg').textContent = 'Redémarrage…'; } catch(e){}
 }
 
+// ---- presence automation ----
+const BTNS = ['power','mode','eco','timer','fan','silent','flap','up','down'];
+let RULES = [];
+function ruleRow(r, idx){
+  const cond = ['presence','absence'].map(c =>
+    `<option value="${c}"${r.cond===c?' selected':''}>${c==='presence'?'Présence':'Absence'}</option>`).join('');
+  const acts = BTNS.map(b => `<option value="${b}"${r.action===b?' selected':''}>${b}</option>`).join('');
+  return `<div class="rule">
+    <label><input type="checkbox" class="r_en"${r.enabled?' checked':''}> on</label>
+    <select class="r_cond">${cond}</select>
+    <span>≥</span><input class="r_dur" inputmode="numeric" value="${(r.duration_s||0)/60}"><span>min →</span>
+    <select class="r_act">${acts}</select>
+    <span>cooldown</span><input class="r_cd" inputmode="numeric" value="${(r.cooldown_s||0)/60}"><span>min</span>
+    <button class="ui rm" onclick="delRule(${idx})">✕</button>
+  </div>`;
+}
+function renderRules(){
+  $('#ruleList').innerHTML = RULES.length ? RULES.map(ruleRow).join('')
+                                          : '<p class="small">Aucune règle.</p>';
+}
+function addRule(){
+  if(RULES.length>=6){ $('#rulesMsg').textContent='Maximum 6 règles.'; return; }
+  RULES.push({enabled:true,cond:'presence',duration_s:300,action:'power',cooldown_s:600});
+  renderRules();
+}
+function delRule(i){ RULES.splice(i,1); renderRules(); }
+function collectRules(){
+  return [...document.querySelectorAll('#ruleList .rule')].map(el => ({
+    enabled: el.querySelector('.r_en').checked,
+    cond: el.querySelector('.r_cond').value,
+    duration_s: Math.max(0, Math.round((parseFloat(el.querySelector('.r_dur').value)||0)*60)),
+    action: el.querySelector('.r_act').value,
+    cooldown_s: Math.max(0, Math.round((parseFloat(el.querySelector('.r_cd').value)||0)*60)),
+  }));
+}
+async function loadRules(){
+  try { const d = await (await fetch('/api/rules')).json(); RULES = d.rules||[]; renderRules(); } catch(e){}
+}
+async function saveRules(){
+  RULES = collectRules();
+  const parts = ['n='+RULES.length];
+  RULES.forEach((r,i) => {
+    parts.push('en'+i+'='+(r.enabled?1:0));
+    parts.push('cond'+i+'='+r.cond);
+    parts.push('dur'+i+'='+r.duration_s);
+    parts.push('act'+i+'='+encodeURIComponent(r.action));
+    parts.push('cd'+i+'='+r.cooldown_s);
+  });
+  try {
+    const r = await (await fetch('/api/rules', {method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:parts.join('&')})).json();
+    $('#rulesMsg').textContent = r.ok ? 'Règles enregistrées.' : 'Erreur : touche invalide.';
+    loadRules();
+  } catch(e){ $('#rulesMsg').textContent = 'Erreur d’enregistrement.'; }
+}
+
 loadPins();
+loadRules();
 refresh(); setInterval(refresh, 3000);
 </script>
 </body>

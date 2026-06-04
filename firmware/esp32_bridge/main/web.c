@@ -4,6 +4,8 @@
 #include "mqtt_ha.h"
 #include "bme280.h"
 #include "pins.h"
+#include "rules.h"
+#include "ld2410.h"
 #include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
@@ -71,14 +73,17 @@ static esp_err_t h_index(httpd_req_t *req)
 static esp_err_t h_status(httpd_req_t *req)
 {
     float t = 0, h = 0, p = 0; bool bme = bme280_get(&t, &h, &p);
-    char buf[440];
+    char buf[512];
     snprintf(buf, sizeof(buf),
         "{\"state\":\"%s\",\"ssid\":\"%s\",\"ip\":\"%s\",\"ap\":\"%s\",\"has_creds\":%s,\"nrf\":\"%s\","
-        "\"mqtt\":%s,\"mqtt_host\":\"%s\",\"bme\":%s,\"temp\":%.2f,\"hum\":%.1f,\"hpa\":%.1f}",
+        "\"mqtt\":%s,\"mqtt_host\":\"%s\",\"bme\":%s,\"temp\":%.2f,\"hum\":%.1f,\"hpa\":%.1f,"
+        "\"ld\":%s,\"presence\":%s,\"presence_s\":%lu}",
         wifi_mgr_state_str(), wifi_mgr_ssid(), wifi_mgr_ip(), wifi_mgr_ap_ssid(),
         wifi_mgr_has_creds() ? "true" : "false", uart_link_status(),
         mqtt_ha_connected() ? "true" : "false", mqtt_ha_host(),
-        bme ? "true" : "false", t, h, p);
+        bme ? "true" : "false", t, h, p,
+        ld2410_alive() ? "true" : "false", rules_presence() ? "true" : "false",
+        (unsigned long)rules_presence_secs());
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, buf);
 }
@@ -195,6 +200,56 @@ static esp_err_t h_reboot(httpd_req_t *req)
     return ESP_OK;
 }
 
+// ---- presence rules ----
+// GET returns hand-rolled JSON (chunked, like h_scan); POST takes indexed form fields
+// (n + en<i>/cond<i>/dur<i>/act<i>/cd<i>), parsed with form_get — no JSON lib needed.
+static esp_err_t h_rules(httpd_req_t *req)
+{
+    rule_t rs[RULES_MAX];
+    int n = rules_get(rs, RULES_MAX);
+    httpd_resp_set_type(req, "application/json");
+    char head[64];
+    snprintf(head, sizeof(head), "{\"present\":%s,\"presence_s\":%lu,\"rules\":[",
+             rules_presence() ? "true" : "false", (unsigned long)rules_presence_secs());
+    httpd_resp_sendstr_chunk(req, head);
+    for (int i = 0; i < n; i++) {
+        char item[160];
+        snprintf(item, sizeof(item),
+            "%s{\"enabled\":%s,\"cond\":\"%s\",\"duration_s\":%u,\"cooldown_s\":%u,\"action\":\"%s\"}",
+            i ? "," : "", rs[i].enabled ? "true" : "false",
+            rs[i].cond == RULE_COND_ABSENCE ? "absence" : "presence",
+            rs[i].duration_s, rs[i].cooldown_s, rs[i].action);
+        httpd_resp_sendstr_chunk(req, item);
+    }
+    httpd_resp_sendstr_chunk(req, "]}");
+    return httpd_resp_sendstr_chunk(req, NULL);
+}
+
+static esp_err_t h_rules_save(httpd_req_t *req)
+{
+    char body[768]; read_body(req, body, sizeof(body));
+    char cnt[8] = "0"; form_get(body, "n", cnt, sizeof(cnt));
+    int n = atoi(cnt);
+    if (n < 0) n = 0;
+    if (n > RULES_MAX) n = RULES_MAX;
+
+    rule_t rs[RULES_MAX];
+    for (int i = 0; i < n; i++) {
+        memset(&rs[i], 0, sizeof(rule_t));
+        char key[8], v[16];
+        snprintf(key, sizeof(key), "en%d", i);   rs[i].enabled = form_get(body, key, v, sizeof(v)) && atoi(v);
+        snprintf(key, sizeof(key), "cond%d", i);
+        rs[i].cond = (form_get(body, key, v, sizeof(v)) && !strcmp(v, "absence"))
+                     ? RULE_COND_ABSENCE : RULE_COND_PRESENCE;
+        snprintf(key, sizeof(key), "dur%d", i);   if (form_get(body, key, v, sizeof(v))) rs[i].duration_s = (uint16_t)atoi(v);
+        snprintf(key, sizeof(key), "cd%d", i);    if (form_get(body, key, v, sizeof(v))) rs[i].cooldown_s = (uint16_t)atoi(v);
+        snprintf(key, sizeof(key), "act%d", i);   form_get(body, key, rs[i].action, sizeof(rs[i].action));
+    }
+    bool ok = rules_set(rs, n);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
+}
+
 static void reg(httpd_handle_t s, const char *uri, httpd_method_t m, esp_err_t (*fn)(httpd_req_t*))
 {
     httpd_uri_t u = { .uri = uri, .method = m, .handler = fn };
@@ -219,5 +274,7 @@ void web_start(void)
     reg(s, "/api/pins", HTTP_GET, h_pins);
     reg(s, "/api/pins", HTTP_POST, h_pins_save);
     reg(s, "/api/reboot", HTTP_POST, h_reboot);
+    reg(s, "/api/rules", HTTP_GET, h_rules);
+    reg(s, "/api/rules", HTTP_POST, h_rules_save);
     ESP_LOGI(TAG, "web server up on :80");
 }

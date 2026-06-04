@@ -19,6 +19,8 @@
 #include "web.h"
 #include "mqtt_ha.h"
 #include "bme280.h"
+#include "ld2410.h"
+#include "rules.h"
 
 static const char *TAG = "bridge";
 
@@ -41,6 +43,8 @@ void app_main(void)
     web_start();
     mqtt_ha_init();   // starts the MQTT client (no-op if no broker configured); auto-connects once STA is up
     bme280_init();    // I2C BME280 (pins from config) -> UART env + HA sensors
+    ld2410_init();    // LD2410 presence radar on UART2 (pins from config)
+    rules_load();     // presence automation: load rules + start the evaluator task
 
     ESP_LOGI(TAG, "Ganymede bridge up — AP '%s' / web on :80", wifi_mgr_ap_ssid());
 }

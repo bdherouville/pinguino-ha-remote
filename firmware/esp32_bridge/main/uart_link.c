@@ -60,11 +60,15 @@ static int     s_hb_level = -1;
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 
 // ---- TX ----
+bool uart_link_valid_btn(const char *btn)
+{
+    for (int i = 0; i < NVALID; i++) if (!strcmp(btn, VALID[i])) return true;
+    return false;
+}
+
 bool uart_link_press(const char *btn)
 {
-    bool ok = false;
-    for (int i = 0; i < NVALID; i++) if (!strcmp(btn, VALID[i])) { ok = true; break; }
-    if (!ok) return false;
+    if (!uart_link_valid_btn(btn)) return false;
     char line[32];
     int n = snprintf(line, sizeof(line), "press %s\n", btn);
     uart_write_bytes(LINK_UART, line, n);

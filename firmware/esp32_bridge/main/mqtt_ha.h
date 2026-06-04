@@ -11,3 +11,4 @@ bool        mqtt_ha_connected(void);
 const char *mqtt_ha_host(void);                              // configured broker host ("" if none)
 void        mqtt_ha_publish_env(float temp_c, float humidity, float pressure_hpa); // sensor states
 void        mqtt_ha_publish_nrf(const char *state); // nRF link state -> diagnostic sensor
+void        mqtt_ha_publish_presence(bool present); // LD2410 occupancy -> binary_sensor
