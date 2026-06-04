@@ -33,13 +33,10 @@
 
 /* The public address the emulator impersonates (your remote's address — the AC
  * bonds to it). Kept out of version control: copy clone_addr.h.example to
- * clone_addr.h and set your remote's bytes. Falls back to the placeholder
- * template so a fresh clone still builds (it just won't pair until you set it). */
-#if defined(__has_include) && __has_include("clone_addr.h")
+ * clone_addr.h and set your remote's bytes. When src/clone_addr.h is absent the
+ * CMakeLists generates a placeholder copy from the template (a fresh clone still
+ * builds, it just won't pair until you set your address). */
 #include "clone_addr.h"
-#else
-#include "clone_addr.h.example"
-#endif
 #include <zephyr/logging/log.h>
 #include <string.h>
 
@@ -352,6 +349,15 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
 	g_conn = bt_conn_ref(conn);
 	bridge_send("status connected\n");
 	LOG_INF("connected: %s", addr);
+
+	/* Prompt the AC to encrypt/pair: as a peripheral this sends an SMP Security
+	 * Request. Without it the AC connects but never starts pairing (it waits for
+	 * the remote to ask) — so a fresh bond never happens. On an existing bond this
+	 * just triggers the normal encrypted reconnect. */
+	int sec = bt_conn_set_security(conn, BT_SECURITY_L2);
+	if (sec) {
+		LOG_WRN("set_security rc=%d", sec);
+	}
 }
 
 static void on_disconnected(struct bt_conn *conn, uint8_t reason)
