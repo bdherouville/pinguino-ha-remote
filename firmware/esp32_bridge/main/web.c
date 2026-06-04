@@ -164,24 +164,33 @@ static esp_err_t h_pins(httpd_req_t *req)
     return httpd_resp_sendstr(req, buf);
 }
 
-static void form_u8(const char *body, const char *key, uint8_t *out)
+// Parse one pin field. Returns: 0 = absent (keep current), 1 = set ok,
+// -1 = present but not a valid GPIO. Validating as int before narrowing to uint8_t
+// stops out-of-range/non-numeric input from wrapping into a "valid" pin (300 -> 44).
+static int form_pin(const char *body, const char *key, uint8_t *out)
 {
     char v[8];
-    if (form_get(body, key, v, sizeof(v)) && v[0]) *out = (uint8_t)atoi(v);
+    if (!form_get(body, key, v, sizeof(v)) || !v[0]) return 0;
+    for (const char *c = v; *c; c++) if (*c < '0' || *c > '9') return -1;
+    int g = atoi(v);
+    if (!pins_valid_gpio(g)) return -1;
+    *out = (uint8_t)g;
+    return 1;
 }
 
 static esp_err_t h_pins_save(httpd_req_t *req)
 {
     char body[220]; read_body(req, body, sizeof(body));
     device_pins_t p = *pins_get();   // start from current, override the fields that were sent
-    form_u8(body, "i2c_sda", &p.i2c_sda);
-    form_u8(body, "i2c_scl", &p.i2c_scl);
-    form_u8(body, "nrf_tx",  &p.nrf_tx);
-    form_u8(body, "nrf_rx",  &p.nrf_rx);
-    form_u8(body, "nrf_hb",  &p.nrf_hb);
-    form_u8(body, "ld_tx",   &p.ld_tx);
-    form_u8(body, "ld_rx",   &p.ld_rx);
-    bool ok = pins_save(&p);          // validates; rejects (saves nothing) on a bad GPIO
+    bool bad = false;
+    bad |= form_pin(body, "i2c_sda", &p.i2c_sda) < 0;
+    bad |= form_pin(body, "i2c_scl", &p.i2c_scl) < 0;
+    bad |= form_pin(body, "nrf_tx",  &p.nrf_tx)  < 0;
+    bad |= form_pin(body, "nrf_rx",  &p.nrf_rx)  < 0;
+    bad |= form_pin(body, "nrf_hb",  &p.nrf_hb)  < 0;
+    bad |= form_pin(body, "ld_tx",   &p.ld_tx)   < 0;
+    bad |= form_pin(body, "ld_rx",   &p.ld_rx)   < 0;
+    bool ok = !bad && pins_save(&p);  // pins_save re-validates as defence in depth
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }

@@ -24,11 +24,31 @@ static int64_t s_absent_since_us;      // when the current absence began  (0 if 
 static void eval_task(void *arg)
 {
     bool prev = false;
-    s_absent_since_us = esp_timer_get_time();   // assume empty room at boot
+    bool have_sample = false;   // false until the sensor has produced a valid frame
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
         int64_t now = esp_timer_get_time();
+
+        // A missing/dead LD2410 reads as present=false; that is NOT "empty room", so freeze
+        // automation while the sensor is offline — otherwise absence rules would fire on boot
+        // or on a wiring fault. The continuity timers restart once frames resume.
+        if (!ld2410_alive()) {
+            if (have_sample) mqtt_ha_publish_presence(false);
+            have_sample = false; prev = false;
+            s_present_since_us = 0; s_absent_since_us = 0;
+            continue;
+        }
+
         bool present = ld2410_present();
+
+        if (!have_sample) {
+            // first valid sample (boot or sensor re-appeared): seed the anchor at *now*, not at
+            // boot, and skip firing this tick so durations are measured from a known-good signal.
+            if (present) s_present_since_us = now; else s_absent_since_us = now;
+            mqtt_ha_publish_presence(present);
+            have_sample = true; prev = present;
+            continue;
+        }
 
         if (present && !prev) { s_present_since_us = now; s_absent_since_us = 0;
                                 mqtt_ha_publish_presence(true); }

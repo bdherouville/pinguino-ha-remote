@@ -41,11 +41,13 @@ const device_pins_t *pins_get(void) { return &s; }
 bool pins_valid_gpio(int g)
 {
     // ESP32-S3 has GPIO0..48. 22..25 are not bonded out; 26..32 drive the SPI flash/PSRAM
-    // and must never be repurposed. Everything else is permitted (incl. strapping pins 0/3/45/46
-    // and the USB pins 19/20 — usable, just left to the user's judgement).
+    // and must never be repurposed; GPIO48 is the WS2812 status LED (led_status.c, fixed).
+    // Everything else is permitted (incl. strapping pins 0/3/45/46 and the USB pins 19/20 —
+    // usable, just left to the user's judgement).
     if (g < 0 || g > 48)      return false;
     if (g >= 22 && g <= 25)   return false;
     if (g >= 26 && g <= 32)   return false;
+    if (g == 48)              return false;   // owned by the status LED
     return true;
 }
 
