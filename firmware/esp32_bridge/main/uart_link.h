@@ -25,6 +25,7 @@ typedef enum {
 void uart_link_init(void);
 bool uart_link_press(const char *btn);   // returns false if btn invalid
 void uart_link_env(float temp_c, float humidity, float pressure_hpa); // -> "env <t> <h> <p>\n"
+void uart_link_pairing(bool unpair);     // -> "unpair\n" (clear bond, pairing mode) or "pair\n"
 
 nrf_state_t uart_link_nrf_state(void);   // current effective state
 bool        uart_link_alive(void);       // heartbeat or recent UART seen

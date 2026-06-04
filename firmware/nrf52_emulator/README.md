@@ -32,8 +32,12 @@ That's it — the board now advertises as `Ganymede`. The on-board LED blinks wh
 and goes solid once the AC bonds. (After the app is running, the USB shell command `emu dfu`
 re-enters the bootloader without the pad trick.)
 
-The prebuilt binary clones a **generic Cypress-OUI address** (`00:A0:50:00:00:01`) — the OUI
-is the AC's pairing gate, so it bonds via fresh-pairing. See *Pair with the AC* in the
+The prebuilt binary **generates a unique per-device Cypress-OUI address** at first start (from
+the chip's factory device ID, stable across reboots) — so every unit is its own remote. The
+**address is not the pairing gate**: the AC pairs whatever advertises in **pairing mode** (the
+emulator advertises **Limited Discoverable** when it has no bond, exactly like a real remote).
+So the binary **pairs like any new remote** — put the AC in pairing mode and it bonds (or use
+the **Pair / Unpair** buttons in the bridge web UI). See *Pair with the AC* in the
 [main README](../../README.md).
 
 ---
@@ -51,21 +55,20 @@ The app links at flash offset **0x1000** (no SoftDevice) and uses the **RC** low
 clock (these clones have a flaky 32 kHz crystal). Both are pinned in the out-of-tree board
 under `zephyr/boards/`. Details in [`../../docs/HARDWARE.md`](../../docs/HARDWARE.md).
 
-### Cloning a *specific* remote's address (optional)
+### Cloning a *specific* remote's address (optional, advanced)
 
-The emulator advertises a public address whose **OUI `00:A0:50`** is the gate. The exact
-address lives in a git-ignored header so it never ships in the repo:
+You almost never need this — the generic address pairs fine. The only reason to clone a
+specific address is to **silently take over an AC's *existing* bond** (so the AC encrypted-
+reconnects to your emulator without a fresh pairing), by impersonating the exact address that
+AC already trusts. The address is kept in a git-ignored header so it never ships in the repo:
 
 ```bash
 cp zephyr/src/clone_addr.h.example zephyr/src/clone_addr.h
-# edit CLONE_ADDR_LE — little-endian, keep 0x50,0xa0,0x00 as the last three bytes.
-# find your remote's address with tools/linux-ble/scan_ganymede.py
+# edit CLONE_ADDR_LE — little-endian; keep 0x50,0xa0,0x00 as the last three bytes (Cypress OUI).
+# find the address with tools/linux-ble/scan_ganymede.py
 ```
 
-The Cypress OUI is the gate, so a **fresh pair** with the generic placeholder is expected to
-work. If your AC refuses to bond the generic emulator, scan your real remote and rebuild with
-its exact address (you also need this to take over an address an AC already bonded to). Without
-`clone_addr.h`, the build falls back to the `.example` template.
+Without `clone_addr.h` the build falls back to the `.example` template (the generic address).
 
 ## USB shell
 

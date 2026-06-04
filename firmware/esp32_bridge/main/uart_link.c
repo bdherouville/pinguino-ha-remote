@@ -78,6 +78,13 @@ void uart_link_env(float t, float h, float p)
     uart_write_bytes(LINK_UART, line, n);   // emulator CLI: env <tempC> <hum%> <hPa>
 }
 
+void uart_link_pairing(bool unpair)
+{
+    const char *line = unpair ? "unpair\n" : "pair\n";
+    uart_write_bytes(LINK_UART, line, strlen(line));
+    ESP_LOGI(TAG, "-> nRF: %s", unpair ? "unpair" : "pair");
+}
+
 // ---- RX line parsing ----
 static void handle_line(char *line)
 {

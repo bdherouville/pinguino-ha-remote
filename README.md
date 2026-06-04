@@ -85,10 +85,14 @@ On first boot the ESP32 raises an open AP **`Ganymede-Bridge`** → connect → 
 
 ### 5 · Pair with the AC
 
-1. Put the **emulator** in pairing mode (hold **MODE** ~10 s until its LED blinks — it
-   advertises as `Ganymede`).
-2. Put the **AC** in pairing mode (hold **MODE** ~10 s; its display dot blinks rapidly).
-3. They bond within 60 s. The bridge LED goes **green** = ready to relay.
+The emulator behaves like a real remote: with **no bond** it automatically advertises in
+**pairing mode** (Limited Discoverable) as `Ganymede` — no button needed.
+
+1. Put the **AC** in pairing mode (hold **MODE** ~10 s; its display dot blinks rapidly).
+2. They bond within ~60 s. The bridge LED goes **green** = ready to relay.
+
+That's it — it **pairs, unpairs, re-pairs, and switches with the original remote exactly like a
+physical remote**, so the address doesn't matter (the prebuilt generic binary works as-is).
 
 ### 6 · Control it
 

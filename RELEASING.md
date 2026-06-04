@@ -13,8 +13,9 @@ which:
 1. Builds the **ESP32-S3** bridge (ESP-IDF v6.0.1) and merges it into a single
    `ganymede-bridge-esp32s3.bin` (flashable at `0x0`).
 2. Builds the **nRF52840** emulator (nRF Connect SDK v2.7.0) → `ganymede-emulator-nrf52840.uf2`.
-   The git-ignored `clone_addr.h` is absent in CI, so the binary uses the generic
-   Cypress-OUI placeholder (`00:A0:50:00:00:01`) and pairs by fresh-pairing.
+   The git-ignored `clone_addr.h` is absent in CI, so the binary **generates a unique
+   per-device Cypress-OUI address** at first start and pairs like any new remote
+   (plug-and-play; no per-unit configuration).
 3. Fetches the one-time nRF **bootloader-update** UF2
    (`update-nice_nano_bootloader-0.9.2_nosd.uf2`).
 4. Publishes a **GitHub Release** with all three files + `SHA256SUMS`.

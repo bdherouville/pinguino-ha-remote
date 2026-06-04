@@ -1,22 +1,27 @@
-/* clone_addr.h — the BLE public address the emulator impersonates.
+/* clone_addr.h — the BLE public address the emulator advertises.
  *
- * This is your real remote's address: the AC bonds to it, so the emulator must
- * advertise/connect with the same address. It is kept OUT of version control.
+ * You normally do NOT need this file. With the generic value below (or no
+ * clone_addr.h at all), the firmware GENERATES a unique per-device Cypress-OUI
+ * address from the chip's factory device ID at boot — stable across reboots, so
+ * each unit is its own remote. The address is NOT the AC's pairing gate (the AC
+ * pairs whatever advertises in pairing mode / Limited Discoverable), so a
+ * generated address pairs like any new remote. Set a SPECIFIC address here only
+ * to silently take over an AC's *existing* bond (impersonate the exact address it
+ * already trusts, so it encrypted-reconnects without re-pairing).
  *
  *   cp clone_addr.h.example clone_addr.h     # then edit the bytes below
  *
  * clone_addr.h is git-ignored; this .example is the tracked template and the
- * build's fallback (the firmware compiles without clone_addr.h, but won't pair
- * until you provide your real address).
+ * build's fallback (the firmware compiles and works with the generic address
+ * below if you don't provide one).
  *
- * Format: little-endian — addr[0] is the LSB / first octet sent on air. The
- * Cypress OUI 00:A0:50 is the gate the AC checks, so keep the last three bytes
- * as { 0x50, 0xa0, 0x00 } and set the first three to your remote's lower octets
- * (reversed). Find your remote's address by scanning with
+ * Format: little-endian — addr[0] is the LSB / first octet sent on air. Keep the
+ * Cypress OUI 00:A0:50 (the last three bytes { 0x50, 0xa0, 0x00 }); set the first
+ * three to the remote's lower octets (reversed). Find an address by scanning with
  * tools/linux-ble/scan_ganymede.py (look for the "Ganymede" device).
  *
  * Example: on-air address 00:A0:50:12:34:56  ->  { 0x56, 0x34, 0x12, 0x50, 0xa0, 0x00 }
  */
 #ifndef CLONE_ADDR_LE
-#define CLONE_ADDR_LE { 0x01, 0x00, 0x00, 0x50, 0xa0, 0x00 } /* 00:A0:50:00:00:01 — REPLACE */
+#define CLONE_ADDR_LE { 0x01, 0x00, 0x00, 0x50, 0xa0, 0x00 } /* 00:A0:50:00:00:01 (generic) */
 #endif

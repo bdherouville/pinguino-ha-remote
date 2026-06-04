@@ -120,6 +120,15 @@ static esp_err_t h_press(httpd_req_t *req)
     return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
+static esp_err_t h_pairing(httpd_req_t *req)
+{
+    // /api/unpair clears the bond and re-enters pairing mode; /api/pair re-kicks advertising.
+    bool unpair = strstr(req->uri, "unpair") != NULL;
+    uart_link_pairing(unpair);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
 static esp_err_t h_mqtt(httpd_req_t *req)
 {
     char body[220]; read_body(req, body, sizeof(body));
@@ -151,6 +160,8 @@ void web_start(void)
     reg(s, "/api/scan", HTTP_GET, h_scan);
     reg(s, "/api/connect", HTTP_POST, h_connect);
     reg(s, "/api/press", HTTP_POST, h_press);
+    reg(s, "/api/pair", HTTP_POST, h_pairing);
+    reg(s, "/api/unpair", HTTP_POST, h_pairing);
     reg(s, "/api/mqtt", HTTP_POST, h_mqtt);
     ESP_LOGI(TAG, "web server up on :80");
 }

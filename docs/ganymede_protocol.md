@@ -103,12 +103,15 @@ Each press emits **one 8-byte notification, duplicated 2× on air, no key-releas
 Source: Android HCI snoop (labeled via press-count in
 `captures/raw/delonghi_re/ganymede-btsnoop4.log`).
 
-## Link-Layer identity — THE PAIRING GATE (the real blocker)
+## Link-Layer identity (observed — but NOT the pairing gate)
 
-**The AC checks the peripheral's chip identity BEFORE it will pair.** On-air order
-(from a working pairing): `connect → LL Feature Req → LL Version Ind → SMP Pairing
-Request → THEN GATT discovery`. The AC reads the remote's **LL Version Information** and
-only proceeds to pair if it matches a genuine **Cypress** remote.
+> **Superseded:** we long believed the AC gated pairing on the peripheral's chip identity /
+> Cypress address OUI. The real gate is the **discoverable flag** (see *Pairing mode* below):
+> the AC pairs whatever advertises **Limited Discoverable**, regardless of address/LL identity.
+> The values below are still the real remote's, but they are not what unlocks pairing.
+
+On-air order (from a working pairing): `connect → LL Feature Req → LL Version Ind → SMP Pairing
+Request → THEN GATT discovery`. The AC reads the remote's **LL Version Information**:
 
 | Field | Real remote value | Status | Source |
 |---|---|---|---|
@@ -116,29 +119,25 @@ only proceeds to pair if it matches a genuine **Cypress** remote.
 | **Company / Manufacturer ID** | **`0x0131` = Cypress Semiconductor** | observed | " |
 | LL Subversion | `4608` (`0x1200`) | observed | " |
 
-**Consequence for the emulator (verified by hands-on testing 2026-06-03):** an
-**nRF52840 + Nordic SoftDevice reports Company `0x0059` (Nordic) / BLE 5.x** in
-LL_VERSION_IND. The AC connects to it, reads "Nordic / 5.x", and **silently refuses to
-pair** — it never sends the Pairing Request and drops into discover-only. Reproduced
-repeatedly; the GATT is fully discovered but no SMP occurs.
-
-→ The LL Version Company ID is **baked into the SoftDevice and not settable from
-Bluefruit/Arduino**, so the emulator runs on the **Zephyr / nRF Connect SDK** controller.
-**Solved:** setting a **public address with the Cypress OUI `00:A0:50`**
-(`bt_ctlr_set_public_addr`, works under the SoftDevice Controller) is sufficient — the AC
-then sends the Pairing Request and **bonds**. The address OUI, not the reported LL company
-ID, is the gate in practice. Bluefruit/Arduino remains a dead end.
+Our nRF52840 + Nordic SoftDevice reports Company `0x0059` (Nordic) / BLE 5.x here, yet the AC
+**pairs it fine** once the emulator advertises Limited Discoverable — so the reported LL
+identity does **not** gate pairing. (Earlier "connect but never pair" results were the AC
+*reconnecting a bonded address* while the emulator advertised General Discoverable, which we
+misread as an LL-identity refusal.) The emulator still runs on the **Zephyr / nRF Connect
+SDK** controller for other reasons (the open-source controller hangs on this board; address is
+settable via `bt_ctlr_set_public_addr`). Bluefruit/Arduino is still a dead end — but for the
+discoverable/SMP behaviour it couldn't express, not the LL company ID.
 
 ## Pairing / security (SMP)
 
 | Direction | Method | Status | Source |
 |---|---|---|---|
 | central → **remote** (Android phone `08:38:e6…` as central) | **Just Works LEGACY**: remote responds IO=NoInputNoOutput, AuthReq Bonding (**SC=0, MITM=0**), key size 16, distributes **LTK+IRK+CSRK** | **observed** | ganymede_bt.zip + captures/raw/delonghi_re/ac-btsnoop.log (tshark `btsmp`) |
-| **AC → emulated remote** | **Achieved.** Once the Zephyr emulator advertises with a Cypress-OUI public address (see §Link-Layer identity), the **AC sends the Pairing Request and bonds** (`secure=1`). SMP is the same Just Works legacy method. | **observed** | nRF emulator on-air |
+| **AC → emulated remote** | **Achieved.** When the emulator advertises **Limited Discoverable** (no bond), the AC connects and **sends the Pairing Request and bonds** (`secure=1`) — same Just Works legacy method. Address-independent; pairs/unpairs/switches like a real remote. | **observed** | nRF emulator + `captures/raw/real_remote_FULL_pairing_20260604.pcap` |
 
 → The responder SMP **method** is settled (Just Works, NoInputNoOutput, no passkey, key
-size 16, distributes LTK+IRK+CSRK). The method was never the blocker — the **Cypress
-link-layer identity gate** was; with the OUI public address the AC pairs and bonds.
+size 16, distributes LTK+IRK+CSRK). The method was never the blocker, and neither was the
+address — the **pairing-mode discoverable flag** was (see *Pairing mode* below).
 
 ## Connection behaviour
 

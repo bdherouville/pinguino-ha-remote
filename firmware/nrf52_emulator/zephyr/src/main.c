@@ -110,12 +110,14 @@ static void led_all_init(void)
 /* UART link to the ESP32 bridge: nRF -> ESP32 state tokens (matches uart_link.c). */
 static void bridge_send(const char *s);
 
-/* Current link state as an ESP-parsable token. */
+/* Current link state as an ESP-parsable token. "ready" = relay-capable, i.e. the
+ * HID report CCC is subscribed (this AC drives HID even unencrypted, so don't gate
+ * ready on g_secure — the LED would otherwise stay orange while control works). */
 static const char *status_line(void)
 {
-	if (g_conn && g_secure && g_report_subscribed) return "status ready\n";
-	if (g_conn && g_secure)                        return "status bonded\n";
-	if (g_conn)                                    return "status connected\n";
+	if (g_conn && g_report_subscribed) return "status ready\n";
+	if (g_conn && g_secure)            return "status bonded\n";
+	if (g_conn)                        return "status connected\n";
 	return "status advertising\n";
 }
 
@@ -197,6 +199,9 @@ static void report_ccc_changed(const struct bt_gatt_attr *a, uint16_t value)
 {
 	g_report_subscribed = (value & BT_GATT_CCC_NOTIFY) != 0;
 	LOG_INF("HID report CCC -> 0x%04x", value);
+	if (g_conn && g_report_subscribed) {
+		bridge_send("status ready\n");   /* relay-capable -> green now */
+	}
 }
 
 /* ---- GATT services -------------------------------------------------------- */
@@ -535,6 +540,28 @@ static void bridge_exec(char *line)
 		snprintk(buf, sizeof(buf), "status conn=%d secure=%d sub=%d\n",
 			 g_conn ? 1 : 0, g_secure, g_report_subscribed);
 		bridge_send(buf);
+	} else if (strcmp(cmd, "unpair") == 0) {
+		/* Drop the bond and the live link, then re-advertise in pairing mode
+		 * (LIMITED discoverable) so the AC can pair this or another remote. */
+		int rc = bt_unpair(BT_ID_DEFAULT, NULL);
+		if (g_conn) {
+			bt_conn_disconnect(g_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		} else {
+			bt_le_adv_stop();
+			emu_advertise();
+		}
+		char buf[32];
+		snprintk(buf, sizeof(buf), "ok unpair rc=%d\n", rc);
+		bridge_send(buf);
+		LOG_INF("bridge unpair rc=%d", rc);
+	} else if (strcmp(cmd, "pair") == 0) {
+		/* Ensure we're advertising for pairing (re-kick adv if idle). */
+		if (!g_conn) {
+			bt_le_adv_stop();
+			emu_advertise();
+		}
+		bridge_send("ok pair\n");
+		LOG_INF("bridge pair (advertising pairing mode)");
 	} else {
 		bridge_send("err\n");
 	}
@@ -624,11 +651,26 @@ int main(void)
 
 	resolve_report_attr();
 
-	/* Impersonate the real remote's public Cypress address (OUI 00:A0:50).
-	 * Little-endian: addr[0] = LSB / first octet on air. Before bt_enable().
-	 * Value comes from clone_addr.h (local-only) — see the include block above. */
-	static const uint8_t cypress_addr[6] = CLONE_ADDR_LE;
+	/* Public Cypress-OUI address (00:A0:50). Little-endian: addr[0]=LSB. Before
+	 * bt_enable(). A specific clone_addr.h overrides; otherwise (generic default)
+	 * derive a stable, unique per-device suffix from the chip's factory device
+	 * address — so each unit gets its own 00:A0:50:xx:xx:xx, like a real remote,
+	 * and it stays constant across reboots so the AC bond persists. */
+	static const uint8_t compiled_addr[6] = CLONE_ADDR_LE;
+	static const uint8_t generic_addr[6] = { 0x01, 0x00, 0x00, 0x50, 0xa0, 0x00 };
+	uint8_t cypress_addr[6];
+	if (memcmp(compiled_addr, generic_addr, sizeof(generic_addr)) != 0) {
+		memcpy(cypress_addr, compiled_addr, sizeof(cypress_addr));  /* pinned address */
+	} else {
+		uint32_t id = NRF_FICR->DEVICEADDR[0];      /* factory random device addr */
+		cypress_addr[0] = id & 0xff;
+		cypress_addr[1] = (id >> 8) & 0xff;
+		cypress_addr[2] = (id >> 16) & 0xff;
+		cypress_addr[3] = 0x50; cypress_addr[4] = 0xa0; cypress_addr[5] = 0x00;
+	}
 	bt_ctlr_set_public_addr(cypress_addr);
+	LOG_INF("public address 00:A0:50:%02x:%02x:%02x",
+		cypress_addr[2], cypress_addr[1], cypress_addr[0]);
 
 	err = bt_enable(NULL);
 	if (err) {
