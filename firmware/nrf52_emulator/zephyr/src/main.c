@@ -115,17 +115,30 @@ static void led_all_init(void)
 /* UART link to the ESP32 bridge: nRF -> ESP32 state tokens (matches uart_link.c). */
 static void bridge_send(const char *s);
 
-/* Heartbeat: toggle P0.24 ~1 Hz so the ESP32 sees the emulator is alive. */
+/* Current link state as an ESP-parsable token. */
+static const char *status_line(void)
+{
+	if (g_conn && g_secure && g_report_subscribed) return "status ready\n";
+	if (g_conn && g_secure)                        return "status bonded\n";
+	if (g_conn)                                    return "status connected\n";
+	return "status advertising\n";
+}
+
+/* Heartbeat: toggle P0.24 ~1 Hz so the ESP32 sees the emulator is alive.
+ * Also RE-PUSH the current status every ~2 s — the per-event pushes can be
+ * missed (boot ordering) or dropped on the status wire, leaving the ESP stuck
+ * showing "boot"; this makes it converge to the true state within seconds. */
 static void hb_thread(void *a, void *b, void *c)
 {
-	int lvl = 0;
+	int lvl = 0, n = 0;
 	for (;;) {
 		lvl = !lvl;
 		gpio_pin_set(g0, HB_PIN, lvl);
+		if (++n >= 4) { n = 0; bridge_send(status_line()); }   /* ~2 s */
 		k_msleep(500);
 	}
 }
-K_THREAD_DEFINE(hb_tid, 384, hb_thread, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(hb_tid, 512, hb_thread, NULL, NULL, NULL, 7, 0, 0);
 
 /* ---- GATT read/write callbacks -------------------------------------------- */
 
@@ -480,15 +493,21 @@ SHELL_STATIC_SUBCMD_SET_CREATE(emu_cmds,
 );
 SHELL_CMD_REGISTER(emu, &emu_cmds, "Ganymede emulator control", NULL);
 
-/* ---- UART bridge to the ESP32 (nRF TX=P0.20, RX=P0.22, 115200) ------------
+/* ---- UART bridge to the ESP32 (nRF TX=P0.22, RX=P0.20, 115200) ------------
  * Line protocol: "press <btn>", "status". Replies one line. */
 static const struct device *bridge_uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
 
+/* Serialise TX: the heartbeat thread and the BT callbacks both send status
+ * lines — without this their characters could interleave on the wire. */
+K_MUTEX_DEFINE(bridge_tx_mutex);
+
 static void bridge_send(const char *s)
 {
+	k_mutex_lock(&bridge_tx_mutex, K_FOREVER);
 	while (*s) {
 		uart_poll_out(bridge_uart, *s++);
 	}
+	k_mutex_unlock(&bridge_tx_mutex);
 }
 
 static void bridge_exec(char *line)
