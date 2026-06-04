@@ -10,11 +10,15 @@
 
 enum { RULE_COND_PRESENCE = 0, RULE_COND_ABSENCE = 1 };
 
+// Upper bound for durations/cooldowns (7 days) — wide enough for any real rule, and keeps
+// duration_s * 1e6 well within int64 in the evaluator.
+#define RULE_MAX_SECS  (7u * 24 * 3600)
+
 typedef struct {
     bool     enabled;
     uint8_t  cond;                     // RULE_COND_PRESENCE | RULE_COND_ABSENCE
-    uint16_t duration_s;               // condition must hold this long before firing
-    uint16_t cooldown_s;               // minimum gap between fires
+    uint32_t duration_s;               // condition must hold this long before firing
+    uint32_t cooldown_s;               // minimum gap between fires
     char     action[RULE_ACTION_LEN];  // button name (validated against uart_link)
 } rule_t;
 

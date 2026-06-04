@@ -224,14 +224,26 @@ static esp_err_t h_rules(httpd_req_t *req)
     for (int i = 0; i < n; i++) {
         char item[160];
         snprintf(item, sizeof(item),
-            "%s{\"enabled\":%s,\"cond\":\"%s\",\"duration_s\":%u,\"cooldown_s\":%u,\"action\":\"%s\"}",
+            "%s{\"enabled\":%s,\"cond\":\"%s\",\"duration_s\":%lu,\"cooldown_s\":%lu,\"action\":\"%s\"}",
             i ? "," : "", rs[i].enabled ? "true" : "false",
             rs[i].cond == RULE_COND_ABSENCE ? "absence" : "presence",
-            rs[i].duration_s, rs[i].cooldown_s, rs[i].action);
+            (unsigned long)rs[i].duration_s, (unsigned long)rs[i].cooldown_s, rs[i].action);
         httpd_resp_sendstr_chunk(req, item);
     }
     httpd_resp_sendstr_chunk(req, "]}");
     return httpd_resp_sendstr_chunk(req, NULL);
+}
+
+// Parse a non-negative seconds field, clamped to RULE_MAX_SECS so large values can't wrap
+// when narrowed/stored (e.g. a 1-day rule no longer truncates to ~5.8 h).
+static uint32_t form_secs(const char *body, const char *key)
+{
+    char v[16];
+    if (!form_get(body, key, v, sizeof(v))) return 0;
+    long s = strtol(v, NULL, 10);
+    if (s < 0) s = 0;
+    if (s > (long)RULE_MAX_SECS) s = RULE_MAX_SECS;
+    return (uint32_t)s;
 }
 
 static esp_err_t h_rules_save(httpd_req_t *req)
@@ -250,8 +262,8 @@ static esp_err_t h_rules_save(httpd_req_t *req)
         snprintf(key, sizeof(key), "cond%d", i);
         rs[i].cond = (form_get(body, key, v, sizeof(v)) && !strcmp(v, "absence"))
                      ? RULE_COND_ABSENCE : RULE_COND_PRESENCE;
-        snprintf(key, sizeof(key), "dur%d", i);   if (form_get(body, key, v, sizeof(v))) rs[i].duration_s = (uint16_t)atoi(v);
-        snprintf(key, sizeof(key), "cd%d", i);    if (form_get(body, key, v, sizeof(v))) rs[i].cooldown_s = (uint16_t)atoi(v);
+        snprintf(key, sizeof(key), "dur%d", i);   rs[i].duration_s = form_secs(body, key);
+        snprintf(key, sizeof(key), "cd%d", i);    rs[i].cooldown_s = form_secs(body, key);
         snprintf(key, sizeof(key), "act%d", i);   form_get(body, key, rs[i].action, sizeof(rs[i].action));
     }
     bool ok = rules_set(rs, n);

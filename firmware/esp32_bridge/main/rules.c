@@ -33,7 +33,7 @@ static void eval_task(void *arg)
         // automation while the sensor is offline — otherwise absence rules would fire on boot
         // or on a wiring fault. The continuity timers restart once frames resume.
         if (!ld2410_alive()) {
-            if (have_sample) mqtt_ha_publish_presence(false);
+            if (have_sample) mqtt_ha_presence_unavailable();  // unavailable, not a false "vacant"
             have_sample = false; prev = false;
             s_present_since_us = 0; s_absent_since_us = 0;
             continue;

@@ -55,11 +55,18 @@ bool pins_save(const device_pins_t *p)
 {
     const uint8_t all[] = { p->i2c_sda, p->i2c_scl, p->nrf_tx, p->nrf_rx,
                             p->nrf_hb, p->ld_tx, p->ld_rx };
-    for (size_t i = 0; i < sizeof(all); i++)
+    for (size_t i = 0; i < sizeof(all); i++) {
         if (!pins_valid_gpio(all[i])) {
             ESP_LOGW(TAG, "rejecting save: GPIO%d is not usable", all[i]);
             return false;
         }
+        // each pin drives a distinct signal; a shared pad would clobber a peripheral at boot
+        for (size_t j = 0; j < i; j++)
+            if (all[i] == all[j]) {
+                ESP_LOGW(TAG, "rejecting save: GPIO%d assigned to two roles", all[i]);
+                return false;
+            }
+    }
 
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
