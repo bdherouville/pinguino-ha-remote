@@ -281,22 +281,36 @@ static void force_subscribe(struct bt_conn *conn)
 
 /* ---- advertising ---------------------------------------------------------- */
 
-/* The Cypress manufacturer data (company 0x0131 + key 3b 04) is in BOTH the
- * primary ADV and the scan response. A Cypress/CYSPP central filters which
- * peripheral to connect to by this key in the ADVERTISEMENT packet — and in the
- * pairing-mode capture the AC never sent a SCAN_REQ, so it would never read a
- * scan-response-only key. Carrying it in ad[] lets the AC's passive scan match.
- * (ad[] totals exactly 31 bytes — the legacy advert limit.) */
+/* Flags byte is mutable: when we have NO bond we advertise LIMITED discoverable
+ * (0x01) — that is the "I'm in pairing mode" signal the AC scans for and pairs
+ * (confirmed on-air: the real remote pairs while advertising Flags 0x01, and the
+ * AC then sends the SMP Pairing Request). When bonded we advertise GENERAL +
+ * NO_BREDR (0x06) for normal encrypted reconnect. Set in emu_advertise(). */
+#define ADV_FLAGS_PAIRING  BT_LE_AD_LIMITED                      /* 0x01 */
+#define ADV_FLAGS_BONDED   (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR) /* 0x06 */
+static uint8_t adv_flags = ADV_FLAGS_PAIRING;
 static const struct bt_data ad[] = {
-	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+	BT_DATA(BT_DATA_FLAGS, &adv_flags, sizeof(adv_flags)),
 	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 	BT_DATA_BYTES(BT_DATA_UUID16_SOME, 0x0a, 0x18, 0x0f, 0x18, 0x1a, 0x18),
 	BT_DATA_BYTES(BT_DATA_GAP_APPEARANCE, 0xc1, 0x03),
-	BT_DATA_BYTES(BT_DATA_MANUFACTURER_DATA, 0x31, 0x01, 0x3b, 0x04),
 };
+/* Cypress manufacturer data (company 0x0131 + key 3b 04) in the scan response,
+ * exactly like the real remote (the AC SCAN_REQs to read it). */
 static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_MANUFACTURER_DATA, 0x31, 0x01, 0x3b, 0x04),
 };
+
+static void count_bond_cb(const struct bt_bond_info *info, void *user_data)
+{
+	(*(int *)user_data)++;
+}
+static bool emu_has_bond(void)
+{
+	int n = 0;
+	bt_foreach_bond(BT_ID_DEFAULT, count_bond_cb, &n);
+	return n > 0;
+}
 /* Plain connectable advertising. No USE_IDENTITY (it can make adv_start fail
  * when combined with a runtime-set public address); without privacy, a
  * connectable peripheral advertises its identity (the Cypress public addr) anyway. */
@@ -308,6 +322,8 @@ static volatile bool g_adv_ok;
 
 static void emu_advertise(void)
 {
+	/* No bond -> LIMITED discoverable (pairing mode); bonded -> GENERAL (reconnect). */
+	adv_flags = emu_has_bond() ? ADV_FLAGS_BONDED : ADV_FLAGS_PAIRING;
 	int err = bt_le_adv_start(&adv_param, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err && err != -EALREADY) {
 		LOG_ERR("adv start failed (%d)", err);
