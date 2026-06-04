@@ -180,13 +180,27 @@ and the AC never accepts an ESP32 emulator — while a phone (a different radio)
 So BLE lives entirely on the **nRF52840** (sniffer + emulator) and the **ESP32 is
 Wi-Fi-only**. See [`HARDWARE.md`](HARDWARE.md) for board details.
 
+## Pairing mode — the discoverable-flags gate (on-air confirmed)
+
+A remote in **pairing mode advertises Flags `0x01` (LE Limited Discoverable)**; in normal
+(bonded) operation it advertises `0x06` (General + BR/EDR-Not-Supported). The AC's pairing
+scan looks for the **Limited-Discoverable** advert — *not* a specific address — then connects
+and **sends the SMP Pairing Request** (the AC is the initiator). Confirmed by sniffing a full
+real pairing (`captures/raw/real_remote_FULL_pairing_20260604.pcap`): Pairing Request/Response
+both IO=NoInputNoOutput, **SC=0, MITM=0**, Bonding, key size 16, distributing LTK+IRK+CSRK
+(Just Works legacy), no Pairing-Failed. The Cypress mfg key (`31 01 3b 04`) is in the **scan
+response** (the AC SCAN_REQs it). → **The emulator must advertise Limited Discoverable (`0x01`)
+when it has no bond** to be paired; General (`0x06`) when bonded for reconnect. With that, the
+emulator **fresh-pairs the AC like any new remote** (no address-already-bonded requirement).
+
 ## Status — working end to end
 
 | Step | State |
 |---|:--:|
 | nRF Sniffer captures the remote on-air | ✅ |
 | AC discovers the emulator + walks its full GATT | ✅ |
-| AC **bonds** with the emulator (Cypress-OUI public address) | ✅ |
+| AC **fresh-pairs** the emulator (Limited-Discoverable advert, Just Works legacy) | ✅ |
+| AC **bonds + reconnects** the emulator (Cypress-OUI public address) | ✅ |
 | HID report relay (CCC force-enabled server-side; the AC doesn't subscribe) | ✅ |
 | `press power` (and all 9 buttons) changes the AC's state, confirmed on-air | ✅ |
 | LAN control: MQTT/HTTP → ESP32 → UART → nRF → AC | ✅ |
