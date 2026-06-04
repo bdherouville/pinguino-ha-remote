@@ -11,6 +11,10 @@
 
 #define NVS_NS  "rules"
 #define NVS_KEY "list"
+#define NVS_VER_KEY "ver"
+// Bump whenever rule_t's layout changes. A stored blob from a different version is ignored
+// (rules reset to none) rather than misdecoded — there's no shipped installed base to migrate.
+#define RULES_VER 2
 static const char *TAG = "rules";
 
 static rule_t  s_rules[RULES_MAX];
@@ -85,8 +89,12 @@ void rules_load(void)
 {
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+        uint8_t ver = 0;
         size_t sz = sizeof(s_rules);
-        if (nvs_get_blob(h, NVS_KEY, s_rules, &sz) == ESP_OK)
+        // Only trust the blob if it was written by this rule_t layout and is an exact multiple
+        // of the struct size — otherwise ignore it (degrade to 0 rules, never misdecode).
+        if (nvs_get_u8(h, NVS_VER_KEY, &ver) == ESP_OK && ver == RULES_VER &&
+            nvs_get_blob(h, NVS_KEY, s_rules, &sz) == ESP_OK && (sz % sizeof(rule_t)) == 0)
             s_count = (int)(sz / sizeof(rule_t));
         nvs_close(h);
     }
@@ -114,6 +122,7 @@ bool rules_set(const rule_t *in, int count)
 
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
+    nvs_set_u8(h, NVS_VER_KEY, RULES_VER);
     nvs_set_blob(h, NVS_KEY, in, count * sizeof(rule_t));
     esp_err_t e = nvs_commit(h);
     nvs_close(h);
