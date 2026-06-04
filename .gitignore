@@ -34,3 +34,6 @@ captures/*
 .DS_Store
 .idea/
 .vscode/
+
+# Source marketing photo for the hero image — kept local, not redistributed
+docs/assets/photos/pac_el112.jpg
