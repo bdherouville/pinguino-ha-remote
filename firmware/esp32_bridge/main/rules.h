@@ -7,6 +7,9 @@
 // then waits `cooldown_s` before it can fire again. Rules persist in NVS (namespace "rules").
 #define RULES_MAX        6
 #define RULE_ACTION_LEN  12
+// Anti-spam floor: an enabled rule re-fires no faster than this, so a 0-cooldown rule
+// can't press the AC button every evaluation tick.
+#define RULE_MIN_COOLDOWN_S 10
 
 enum { RULE_COND_PRESENCE = 0, RULE_COND_ABSENCE = 1 };
 

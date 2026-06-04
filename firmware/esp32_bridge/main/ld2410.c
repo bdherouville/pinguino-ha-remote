@@ -24,7 +24,9 @@ static int64_t s_last_frame_us;
 // Basic target data segment: 02 AA <state> <mov d(2)> <mov e> <stat d(2)> <stat e> <det d(2)> 55 00
 static void parse_data(const uint8_t *d, int dlen)
 {
-    if (dlen < 11 || d[0] != 0x02 || d[1] != 0xAA) return;   // not a basic target frame
+    // Basic target frame is 13 data bytes: 02 AA state mov(2) movEn stat(2) statEn det(2) 55 00.
+    // Require the full length so a short look-alike that happens to start 02 AA is rejected.
+    if (dlen < 13 || d[0] != 0x02 || d[1] != 0xAA) return;
     s_state     = d[2];
     s_moving_cm = (uint16_t)(d[3] | (d[4] << 8));
     s_static_cm = (uint16_t)(d[6] | (d[7] << 8));

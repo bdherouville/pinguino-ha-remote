@@ -218,7 +218,7 @@
     <input id="muser" placeholder="Utilisateur (optionnel)">
     <input id="mpass" type="password" placeholder="Mot de passe (optionnel)">
     <button class="ui" onclick="saveMqtt()">Enregistrer &amp; connecter</button>
-    <p class="small">9 boutons + 3 capteurs + l'état nRF sont publiés en auto-découverte HA.</p>
+    <p class="small">9 boutons + 3 capteurs + présence + l'état nRF sont publiés en auto-découverte HA.</p>
   </div>
 
   <div class="card" id="pinsCard">
@@ -363,9 +363,9 @@ function ruleRow(r, idx){
   return `<div class="rule">
     <label><input type="checkbox" class="r_en"${r.enabled?' checked':''}> on</label>
     <select class="r_cond">${cond}</select>
-    <span>≥</span><input class="r_dur" inputmode="numeric" value="${(r.duration_s||0)/60}"><span>min →</span>
+    <span>≥</span><input class="r_dur" inputmode="numeric" value="${+(((r.duration_s||0)/60).toFixed(2))}"><span>min →</span>
     <select class="r_act">${acts}</select>
-    <span>cooldown</span><input class="r_cd" inputmode="numeric" value="${(r.cooldown_s||0)/60}"><span>min</span>
+    <span>cooldown</span><input class="r_cd" inputmode="numeric" value="${+(((r.cooldown_s||0)/60).toFixed(2))}"><span>min</span>
     <button class="ui rm" onclick="delRule(${idx})">✕</button>
   </div>`;
 }
