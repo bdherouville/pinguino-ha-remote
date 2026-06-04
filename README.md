@@ -1,5 +1,7 @@
 # pinguino-ha-remote
 
+![De'Longhi Pinguino, now connected: web UI, Home Assistant, MQTT/HTTP, ambient sensor, via an emulated BLE remote on an ESP32-S3 + nRF52840 bridge](docs/assets/photos/feature-overview.png)
+
 A connected remote that controls a **De'Longhi Pinguino air-conditioner** from your LAN /
 Home Assistant by **emulating its manual BLE remote** (the "Ganymede" — a Cypress PSoC 4
 BLE HID keyboard). The emulator enters pairing, lets the AC (which is the BLE *central*)
