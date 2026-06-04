@@ -3,8 +3,12 @@
 #include "uart_link.h"
 #include "mqtt_ha.h"
 #include "bme280.h"
+#include "pins.h"
 #include <string.h>
 #include <stdlib.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 
@@ -142,6 +146,55 @@ static esp_err_t h_mqtt(httpd_req_t *req)
     return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
+// ---- pin configuration ----
+static esp_err_t h_pins(httpd_req_t *req)
+{
+    const device_pins_t *p = pins_get();
+    char buf[200];
+    snprintf(buf, sizeof(buf),
+        "{\"i2c_sda\":%d,\"i2c_scl\":%d,\"nrf_tx\":%d,\"nrf_rx\":%d,\"nrf_hb\":%d,"
+        "\"ld_tx\":%d,\"ld_rx\":%d}",
+        p->i2c_sda, p->i2c_scl, p->nrf_tx, p->nrf_rx, p->nrf_hb, p->ld_tx, p->ld_rx);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, buf);
+}
+
+static void form_u8(const char *body, const char *key, uint8_t *out)
+{
+    char v[8];
+    if (form_get(body, key, v, sizeof(v)) && v[0]) *out = (uint8_t)atoi(v);
+}
+
+static esp_err_t h_pins_save(httpd_req_t *req)
+{
+    char body[220]; read_body(req, body, sizeof(body));
+    device_pins_t p = *pins_get();   // start from current, override the fields that were sent
+    form_u8(body, "i2c_sda", &p.i2c_sda);
+    form_u8(body, "i2c_scl", &p.i2c_scl);
+    form_u8(body, "nrf_tx",  &p.nrf_tx);
+    form_u8(body, "nrf_rx",  &p.nrf_rx);
+    form_u8(body, "nrf_hb",  &p.nrf_hb);
+    form_u8(body, "ld_tx",   &p.ld_tx);
+    form_u8(body, "ld_rx",   &p.ld_rx);
+    bool ok = pins_save(&p);          // validates; rejects (saves nothing) on a bad GPIO
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
+}
+
+static void reboot_task(void *a)
+{
+    vTaskDelay(pdMS_TO_TICKS(500));   // let the HTTP response flush first
+    esp_restart();
+}
+
+static esp_err_t h_reboot(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true}");
+    xTaskCreate(reboot_task, "reboot", 2048, NULL, 5, NULL);
+    return ESP_OK;
+}
+
 static void reg(httpd_handle_t s, const char *uri, httpd_method_t m, esp_err_t (*fn)(httpd_req_t*))
 {
     httpd_uri_t u = { .uri = uri, .method = m, .handler = fn };
@@ -163,5 +216,8 @@ void web_start(void)
     reg(s, "/api/pair", HTTP_POST, h_pairing);
     reg(s, "/api/unpair", HTTP_POST, h_pairing);
     reg(s, "/api/mqtt", HTTP_POST, h_mqtt);
+    reg(s, "/api/pins", HTTP_GET, h_pins);
+    reg(s, "/api/pins", HTTP_POST, h_pins_save);
+    reg(s, "/api/reboot", HTTP_POST, h_reboot);
     ESP_LOGI(TAG, "web server up on :80");
 }

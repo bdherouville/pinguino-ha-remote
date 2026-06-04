@@ -1,14 +1,13 @@
 #include "bme280.h"
 #include "uart_link.h"
 #include "mqtt_ha.h"
+#include "pins.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 
-#define BME_SDA   2          // user wiring: SDA=GPIO2
-#define BME_SCL   1          //             SCL=GPIO1
 #define BME_HZ    100000
 #define BME_PERIOD_S 30      // how often to read + forward
 
@@ -110,10 +109,11 @@ static void task(void *arg)
 
 void bme280_init(void)
 {
+    const device_pins_t *pn = pins_get();
     i2c_master_bus_config_t bus = {
         .i2c_port = I2C_NUM_0,
-        .sda_io_num = BME_SDA,
-        .scl_io_num = BME_SCL,
+        .sda_io_num = pn->i2c_sda,
+        .scl_io_num = pn->i2c_scl,
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
@@ -127,13 +127,13 @@ void bme280_init(void)
         if (i2c_master_bus_add_device(bh, &dc, &s_dev) != ESP_OK) continue;
         uint8_t id = 0;
         if (rd(0xD0, &id, 1) == ESP_OK && id == 0x60) {   // 0x60 = BME280
-            ESP_LOGI(TAG, "BME280 found at 0x%02X (SDA=%d SCL=%d)", addr, BME_SDA, BME_SCL);
+            ESP_LOGI(TAG, "BME280 found at 0x%02X (SDA=%d SCL=%d)", addr, pn->i2c_sda, pn->i2c_scl);
             s_present = true;
             break;
         }
         i2c_master_bus_rm_device(s_dev); s_dev = NULL;
     }
-    if (!s_present) { ESP_LOGW(TAG, "no BME280 on the bus (SDA=%d SCL=%d)", BME_SDA, BME_SCL); return; }
+    if (!s_present) { ESP_LOGW(TAG, "no BME280 on the bus (SDA=%d SCL=%d)", pn->i2c_sda, pn->i2c_scl); return; }
 
     read_calib();
     wr(0xF5, 0x00);   // config: filter off (sampling mode is FORCED, set per read)

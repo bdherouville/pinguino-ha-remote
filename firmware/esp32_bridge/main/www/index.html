@@ -25,6 +25,8 @@
   ul#aps li { padding:8px 10px; border:1px solid #2b3543; border-radius:8px; margin:6px 0;
               cursor:pointer; display:flex; justify-content:space-between; }
   ul#aps li:hover { background:#0d1117; }
+  .pins-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; margin:8px 0; }
+  .pins-grid label { display:flex; flex-direction:column; font-size:12px; color:var(--mut); }
 
   /* ---- remote panel (HTML/CSS/SVG, scales with its container) ---- */
   .remote { position:relative; container-type:inline-size; width:100%; aspect-ratio:1.42 / 1;
@@ -212,6 +214,23 @@
     <p class="small">9 boutons + 3 capteurs + l'état nRF sont publiés en auto-découverte HA.</p>
   </div>
 
+  <div class="card" id="pinsCard">
+    <h2>Broches / Câblage</h2>
+    <p class="small">GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.</p>
+    <div class="pins-grid">
+      <label>BME280 SDA<input id="p_i2c_sda" inputmode="numeric"></label>
+      <label>BME280 SCL<input id="p_i2c_scl" inputmode="numeric"></label>
+      <label>nRF TX<input id="p_nrf_tx" inputmode="numeric"></label>
+      <label>nRF RX<input id="p_nrf_rx" inputmode="numeric"></label>
+      <label>nRF heartbeat<input id="p_nrf_hb" inputmode="numeric"></label>
+      <label>LD2410 TX<input id="p_ld_tx" inputmode="numeric"></label>
+      <label>LD2410 RX<input id="p_ld_rx" inputmode="numeric"></label>
+    </div>
+    <button class="ui" onclick="savePins()">Enregistrer les broches</button>
+    <button class="ui" onclick="reboot()">Redémarrer pour appliquer</button>
+    <p class="small" id="pinsMsg"></p>
+  </div>
+
   <div class="card" id="pairCard">
     <h2>Appariement</h2>
     <button class="ui" onclick="pairing(false)">Apparier (mode appairage)</button>
@@ -288,6 +307,29 @@ async function saveMqtt(){
     body:'host='+encodeURIComponent(host)+'&port='+encodeURIComponent(port)+'&user='+encodeURIComponent(user)+'&pass='+encodeURIComponent(pass)});
   setTimeout(refresh, 1800);
 }
+
+const PINF = ['i2c_sda','i2c_scl','nrf_tx','nrf_rx','nrf_hb','ld_tx','ld_rx'];
+async function loadPins(){
+  try {
+    const p = await (await fetch('/api/pins')).json();
+    PINF.forEach(k => { const el = $('#p_'+k); if (el) el.value = p[k]; });
+  } catch(e){}
+}
+async function savePins(){
+  const body = PINF.map(k => k+'='+encodeURIComponent($('#p_'+k).value)).join('&');
+  try {
+    const r = await (await fetch('/api/pins', {method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'}, body})).json();
+    $('#pinsMsg').textContent = r.ok ? 'Enregistré — redémarrez pour appliquer.'
+                                     : 'GPIO invalide : rien enregistré.';
+  } catch(e){ $('#pinsMsg').textContent = 'Erreur d’enregistrement.'; }
+}
+async function reboot(){
+  if(!confirm('Redémarrer le pont maintenant ?')) return;
+  try { await fetch('/api/reboot', {method:'POST'}); $('#pinsMsg').textContent = 'Redémarrage…'; } catch(e){}
+}
+
+loadPins();
 refresh(); setInterval(refresh, 3000);
 </script>
 </body>

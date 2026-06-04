@@ -2,6 +2,7 @@
 #include "led_status.h"
 #include "wifi_mgr.h"
 #include "mqtt_ha.h"
+#include "pins.h"
 #include <string.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
@@ -12,17 +13,17 @@
 #include "esp_log.h"
 
 #define LINK_UART   UART_NUM_1
-// Plain GPIOs on the SuperMini's main castellated edge (P3, no strapping/special function) —
+// TX/RX/heartbeat GPIOs come from the runtime pin config (see pins.h). Defaults are plain
+// GPIOs on the SuperMini's main castellated edge (P3, no strapping/special function) —
 // chosen over the U0TXD/U0RXD (43/44) pads, which carry the ROM boot UART.
-#define LINK_TX_GPIO 4    // ESP_TX -> nRF_RX
-#define LINK_RX_GPIO 5    // ESP_RX <- nRF_TX
 #define LINK_BAUD    115200
 
-// Hardware liveness: the nRF toggles this line (~1 Hz). Input + pulldown, so a missing/dead
-// emulator reads a steady 0 and is correctly reported offline.
-#define HB_GPIO       6
+// Hardware liveness: the nRF toggles the heartbeat line (~1 Hz). Input + pulldown, so a
+// missing/dead emulator reads a steady 0 and is correctly reported offline.
 #define HB_TIMEOUT_MS 3000     // no edge AND no UART for this long -> offline
 #define LINK_POLL_MS  100      // RX read timeout = heartbeat sampling period
+
+static uint8_t s_hb_gpio = PIN_DEF_NRF_HB;   // resolved from pins at init
 
 static const char *TAG = "uart";
 
@@ -131,7 +132,7 @@ static void link_task(void *arg)
     uint8_t buf[64];
     // Start offline: prime the level from the actual pin (so the first sample isn't a false
     // edge) and backdate the activity timestamps past the timeout.
-    s_hb_level = gpio_get_level(HB_GPIO);
+    s_hb_level = gpio_get_level(s_hb_gpio);
     s_last_hb_us = s_last_rx_us = esp_timer_get_time() - (int64_t)(HB_TIMEOUT_MS + 1) * 1000;
     for (;;) {
         // drain UART (also paces the loop at LINK_POLL_MS when idle)
@@ -146,7 +147,7 @@ static void link_task(void *arg)
         }
 
         // sample heartbeat edge
-        int lvl = gpio_get_level(HB_GPIO);
+        int lvl = gpio_get_level(s_hb_gpio);
         if (lvl != s_hb_level) { s_hb_level = lvl; s_last_hb_us = esp_timer_get_time(); }
 
         // liveness = a heartbeat edge or UART traffic within the window
@@ -161,6 +162,9 @@ static void link_task(void *arg)
 
 void uart_link_init(void)
 {
+    const device_pins_t *pn = pins_get();
+    s_hb_gpio = pn->nrf_hb;
+
     const uart_config_t cfg = {
         .baud_rate = LINK_BAUD,
         .data_bits = UART_DATA_8_BITS,
@@ -171,11 +175,11 @@ void uart_link_init(void)
     };
     ESP_ERROR_CHECK(uart_driver_install(LINK_UART, 1024, 1024, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(LINK_UART, &cfg));
-    ESP_ERROR_CHECK(uart_set_pin(LINK_UART, LINK_TX_GPIO, LINK_RX_GPIO,
+    ESP_ERROR_CHECK(uart_set_pin(LINK_UART, pn->nrf_tx, pn->nrf_rx,
                                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
     gpio_config_t hb = {
-        .pin_bit_mask = 1ULL << HB_GPIO,
+        .pin_bit_mask = 1ULL << s_hb_gpio,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_ENABLE,
@@ -185,7 +189,7 @@ void uart_link_init(void)
 
     xTaskCreate(link_task, "nrf_link", 3072, NULL, 5, NULL);
     ESP_LOGI(TAG, "UART link up: TX=%d RX=%d @ %d, heartbeat on GPIO%d",
-             LINK_TX_GPIO, LINK_RX_GPIO, LINK_BAUD, HB_GPIO);
+             pn->nrf_tx, pn->nrf_rx, LINK_BAUD, s_hb_gpio);
 }
 
 nrf_state_t uart_link_nrf_state(void) { return s_effective; }

@@ -12,6 +12,7 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 
+#include "pins.h"
 #include "led_status.h"
 #include "uart_link.h"
 #include "wifi_mgr.h"
@@ -33,12 +34,13 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+    pins_load();      // resolve configurable GPIOs from NVS before any driver uses them
     led_status_init();
     uart_link_init();
     wifi_mgr_init();
     web_start();
     mqtt_ha_init();   // starts the MQTT client (no-op if no broker configured); auto-connects once STA is up
-    bme280_init();    // I2C BME280 (SDA=GPIO1, SCL=GPIO2) -> UART env + HA sensors
+    bme280_init();    // I2C BME280 (pins from config) -> UART env + HA sensors
 
     ESP_LOGI(TAG, "Ganymede bridge up — AP '%s' / web on :80", wifi_mgr_ap_ssid());
 }
