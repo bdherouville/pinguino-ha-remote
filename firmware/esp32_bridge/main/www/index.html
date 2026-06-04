@@ -211,6 +211,15 @@
     <button class="ui" onclick="saveMqtt()">Enregistrer &amp; connecter</button>
     <p class="small">9 boutons + 3 capteurs + l'état nRF sont publiés en auto-découverte HA.</p>
   </div>
+
+  <div class="card" id="pairCard">
+    <h2>Appariement</h2>
+    <button class="ui" onclick="pairing(false)">Apparier (mode appairage)</button>
+    <button class="ui" onclick="pairing(true)">Désapparier</button>
+    <p class="small">L'émulateur s'apparie comme une vraie télécommande. <b>Désapparier</b> efface
+      le lien et le repasse en mode appairage ; mettez ensuite la clim en mode appairage
+      (MODE ~10 s). <b>Apparier</b> relance la diffusion si besoin.</p>
+  </div>
 </main>
 <script>
 const $ = s => document.querySelector(s);
@@ -219,6 +228,10 @@ async function press(b, el){
   try { await fetch('/api/press', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'btn='+b}); } catch(e){}
 }
 document.querySelectorAll('.key').forEach(el => el.onclick = () => press(el.dataset.b, el));
+
+async function pairing(unpair){
+  try { await fetch(unpair ? '/api/unpair' : '/api/pair', {method:'POST'}); } catch(e){}
+}
 
 function setDot(id, cls){ $('#'+id).className = 'sdot' + (cls ? ' '+cls : ''); }
 

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flash the Ganymede Bridge (ESP32-S3)</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 16px/1.6 system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1.2rem; }
+    h1 { font-size: 1.5rem; }
+    code { background: #8884; padding: .1em .35em; border-radius: .3em; }
+    .btn { margin: 1.5rem 0; }
+    ol { padding-left: 1.2rem; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Flash the ESP32-S3 bridge</h1>
+  <p>This installs the <strong>Ganymede Bridge</strong> firmware (Wi-Fi / MQTT / Home Assistant
+  front-end) onto an ESP32-S3 board, straight from your browser — no toolchain needed.</p>
+
+  <ol>
+    <li>Use <strong>Chrome</strong> or <strong>Edge</strong> on desktop (Web Serial).</li>
+    <li>Plug the ESP32-S3 into USB.</li>
+    <li>Click <em>Install</em> below and pick the <code>USB JTAG/serial</code> port.</li>
+  </ol>
+
+  <div class="btn">
+    <esp-web-install-button manifest="./manifest.json">
+      <button slot="activate">Install</button>
+      <span slot="unsupported">Your browser doesn't support Web Serial — use Chrome/Edge, or the
+        command-line path in the README.</span>
+    </esp-web-install-button>
+  </div>
+
+  <p>After flashing, the board exposes a <code>Ganymede-Bridge</code> Wi-Fi access point on first
+  boot — connect to it, open <code>http://192.168.4.1</code>, and set your Wi-Fi (and optional
+  MQTT broker for Home Assistant).</p>
+
+  <p>The nRF52840 board is flashed separately (UF2 drag-and-drop). See the
+  <a href="https://github.com/bdherouville/pinguino-ha-remote">project README</a> for the full
+  step-by-step, including the one-time nRF bootloader upgrade.</p>
+
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+</body>
+</html>

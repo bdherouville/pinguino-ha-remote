@@ -15,7 +15,6 @@
  *   slow 1 Hz blink           = advertising (waiting for the AC)
  *   fast 4 Hz blink           = connected, not yet bonded/encrypted
  *   solid ON                  = bonded + encrypted  (<-- pairing gate PASSED)
- *   3 quick flashes           = auto-sent a "power" press
  *
  * Source of truth: firmware/nrf52_emulator/reference/esp-idf-nimble/main/emulator.c
  */
@@ -34,13 +33,10 @@
 
 /* The public address the emulator impersonates (your remote's address — the AC
  * bonds to it). Kept out of version control: copy clone_addr.h.example to
- * clone_addr.h and set your remote's bytes. Falls back to the placeholder
- * template so a fresh clone still builds (it just won't pair until you set it). */
-#if defined(__has_include) && __has_include("clone_addr.h")
+ * clone_addr.h and set your remote's bytes. When src/clone_addr.h is absent the
+ * CMakeLists generates a placeholder copy from the template (a fresh clone still
+ * builds, it just won't pair until you set your address). */
 #include "clone_addr.h"
-#else
-#include "clone_addr.h.example"
-#endif
 #include <zephyr/logging/log.h>
 #include <string.h>
 
@@ -88,7 +84,6 @@ static uint32_t g_press_x10  = 1013000;
 static struct bt_conn *g_conn;
 static volatile bool g_secure;          /* encrypted + bonded */
 static volatile bool g_report_subscribed;
-static volatile bool g_flash_pulse;     /* LED: blip 3x to mark an auto-press */
 
 /* The SuperMini's user-LED pin varies; drive ALL likely candidates together so
  * the status pattern is visible regardless of which pin the LED is wired to.
@@ -115,17 +110,32 @@ static void led_all_init(void)
 /* UART link to the ESP32 bridge: nRF -> ESP32 state tokens (matches uart_link.c). */
 static void bridge_send(const char *s);
 
-/* Heartbeat: toggle P0.24 ~1 Hz so the ESP32 sees the emulator is alive. */
+/* Current link state as an ESP-parsable token. "ready" = relay-capable, i.e. the
+ * HID report CCC is subscribed (this AC drives HID even unencrypted, so don't gate
+ * ready on g_secure — the LED would otherwise stay orange while control works). */
+static const char *status_line(void)
+{
+	if (g_conn && g_report_subscribed) return "status ready\n";
+	if (g_conn && g_secure)            return "status bonded\n";
+	if (g_conn)                        return "status connected\n";
+	return "status advertising\n";
+}
+
+/* Heartbeat: toggle P0.24 ~1 Hz so the ESP32 sees the emulator is alive.
+ * Also RE-PUSH the current status every ~2 s — the per-event pushes can be
+ * missed (boot ordering) or dropped on the status wire, leaving the ESP stuck
+ * showing "boot"; this makes it converge to the true state within seconds. */
 static void hb_thread(void *a, void *b, void *c)
 {
-	int lvl = 0;
+	int lvl = 0, n = 0;
 	for (;;) {
 		lvl = !lvl;
 		gpio_pin_set(g0, HB_PIN, lvl);
+		if (++n >= 4) { n = 0; bridge_send(status_line()); }   /* ~2 s */
 		k_msleep(500);
 	}
 }
-K_THREAD_DEFINE(hb_tid, 384, hb_thread, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(hb_tid, 512, hb_thread, NULL, NULL, NULL, 7, 0, 0);
 
 /* ---- GATT read/write callbacks -------------------------------------------- */
 
@@ -185,14 +195,12 @@ static ssize_t rd_pad(struct bt_conn *c, const struct bt_gatt_attr *a,
 /* number of filler handles inserted into Env to align HID -> 0x0037 */
 #define ENV_PAD 22
 
-/* auto-press scheduling lives below; forward-declare the trigger. */
-static void schedule_auto_press(void);
 static void report_ccc_changed(const struct bt_gatt_attr *a, uint16_t value)
 {
 	g_report_subscribed = (value & BT_GATT_CCC_NOTIFY) != 0;
 	LOG_INF("HID report CCC -> 0x%04x", value);
-	if (g_report_subscribed) {
-		schedule_auto_press();
+	if (g_conn && g_report_subscribed) {
+		bridge_send("status ready\n");   /* relay-capable -> green now */
 	}
 }
 
@@ -278,15 +286,36 @@ static void force_subscribe(struct bt_conn *conn)
 
 /* ---- advertising ---------------------------------------------------------- */
 
+/* Flags byte is mutable: when we have NO bond we advertise LIMITED discoverable
+ * (0x01) — that is the "I'm in pairing mode" signal the AC scans for and pairs
+ * (confirmed on-air: the real remote pairs while advertising Flags 0x01, and the
+ * AC then sends the SMP Pairing Request). When bonded we advertise GENERAL +
+ * NO_BREDR (0x06) for normal encrypted reconnect. Set in emu_advertise(). */
+#define ADV_FLAGS_PAIRING  BT_LE_AD_LIMITED                      /* 0x01 */
+#define ADV_FLAGS_BONDED   (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR) /* 0x06 */
+static uint8_t adv_flags = ADV_FLAGS_PAIRING;
 static const struct bt_data ad[] = {
-	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+	BT_DATA(BT_DATA_FLAGS, &adv_flags, sizeof(adv_flags)),
 	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 	BT_DATA_BYTES(BT_DATA_UUID16_SOME, 0x0a, 0x18, 0x0f, 0x18, 0x1a, 0x18),
 	BT_DATA_BYTES(BT_DATA_GAP_APPEARANCE, 0xc1, 0x03),
 };
+/* Cypress manufacturer data (company 0x0131 + key 3b 04) in the scan response,
+ * exactly like the real remote (the AC SCAN_REQs to read it). */
 static const struct bt_data sd[] = {
 	BT_DATA_BYTES(BT_DATA_MANUFACTURER_DATA, 0x31, 0x01, 0x3b, 0x04),
 };
+
+static void count_bond_cb(const struct bt_bond_info *info, void *user_data)
+{
+	(*(int *)user_data)++;
+}
+static bool emu_has_bond(void)
+{
+	int n = 0;
+	bt_foreach_bond(BT_ID_DEFAULT, count_bond_cb, &n);
+	return n > 0;
+}
 /* Plain connectable advertising. No USE_IDENTITY (it can make adv_start fail
  * when combined with a runtime-set public address); without privacy, a
  * connectable peripheral advertises its identity (the Cypress public addr) anyway. */
@@ -298,6 +327,8 @@ static volatile bool g_adv_ok;
 
 static void emu_advertise(void)
 {
+	/* No bond -> LIMITED discoverable (pairing mode); bonded -> GENERAL (reconnect). */
+	adv_flags = emu_has_bond() ? ADV_FLAGS_BONDED : ADV_FLAGS_PAIRING;
 	int err = bt_le_adv_start(&adv_param, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err && err != -EALREADY) {
 		LOG_ERR("adv start failed (%d)", err);
@@ -309,7 +340,7 @@ static void emu_advertise(void)
 	LOG_INF("advertising as \"%s\"", DEVICE_NAME);
 }
 
-/* ---- send a button report + autonomous /goal test ------------------------- */
+/* ---- send a button report ------------------------------------------------- */
 
 static int emu_send_report(uint8_t b2, uint8_t b3)
 {
@@ -328,22 +359,9 @@ static int emu_send_report(uint8_t b2, uint8_t b3)
 	return rc;
 }
 
-static void auto_press_fn(struct k_work *work)
-{
-	if (g_conn && g_secure && g_report_subscribed) {
-		int rc = emu_send_report(0x01, 0x00);   /* power */
-		LOG_INF("auto-press power rc=%d", rc);
-		g_flash_pulse = true;
-	}
-}
-static K_WORK_DELAYABLE_DEFINE(auto_press_work, auto_press_fn);
-
-static void schedule_auto_press(void)
-{
-	/* Fire ~8 s after the AC subscribes to HID notifications, so we can watch
-	 * the AC react to a single "power" press (the /goal). */
-	k_work_reschedule(&auto_press_work, K_SECONDS(8));
-}
+/* No autonomous press: the AC only acts on an explicit `press <btn>` command
+ * from the ESP32 (web / MQTT / HTTP) — so plugging the boards in never turns
+ * the AC on by itself. */
 
 /* ---- connection callbacks ------------------------------------------------- */
 
@@ -359,12 +377,20 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
 	g_conn = bt_conn_ref(conn);
 	bridge_send("status connected\n");
 	LOG_INF("connected: %s", addr);
+
+	/* Prompt the AC to encrypt/pair: as a peripheral this sends an SMP Security
+	 * Request. Without it the AC connects but never starts pairing (it waits for
+	 * the remote to ask) — so a fresh bond never happens. On an existing bond this
+	 * just triggers the normal encrypted reconnect. */
+	int sec = bt_conn_set_security(conn, BT_SECURITY_L2);
+	if (sec) {
+		LOG_WRN("set_security rc=%d", sec);
+	}
 }
 
 static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("disconnected (reason 0x%02x)", reason);
-	k_work_cancel_delayable(&auto_press_work);
 	g_secure = false;
 	g_report_subscribed = false;
 	if (g_conn) {
@@ -410,13 +436,6 @@ static void led_set(int on)
 static void led_thread(void *a, void *b, void *c)
 {
 	while (1) {
-		if (g_flash_pulse) {           /* mark an auto-press: 3 quick blips */
-			g_flash_pulse = false;
-			for (int i = 0; i < 3; i++) {
-				led_set(1); k_msleep(60); led_set(0); k_msleep(60);
-			}
-			continue;
-		}
 		if (g_conn && g_secure) {              /* BONDED: solid on */
 			led_set(1); k_msleep(200);
 		} else if (g_conn) {                   /* connected, not bonded: 4 Hz */
@@ -480,15 +499,21 @@ SHELL_STATIC_SUBCMD_SET_CREATE(emu_cmds,
 );
 SHELL_CMD_REGISTER(emu, &emu_cmds, "Ganymede emulator control", NULL);
 
-/* ---- UART bridge to the ESP32 (nRF TX=P0.20, RX=P0.22, 115200) ------------
+/* ---- UART bridge to the ESP32 (nRF TX=P0.22, RX=P0.20, 115200) ------------
  * Line protocol: "press <btn>", "status". Replies one line. */
 static const struct device *bridge_uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
 
+/* Serialise TX: the heartbeat thread and the BT callbacks both send status
+ * lines — without this their characters could interleave on the wire. */
+K_MUTEX_DEFINE(bridge_tx_mutex);
+
 static void bridge_send(const char *s)
 {
+	k_mutex_lock(&bridge_tx_mutex, K_FOREVER);
 	while (*s) {
 		uart_poll_out(bridge_uart, *s++);
 	}
+	k_mutex_unlock(&bridge_tx_mutex);
 }
 
 static void bridge_exec(char *line)
@@ -515,6 +540,28 @@ static void bridge_exec(char *line)
 		snprintk(buf, sizeof(buf), "status conn=%d secure=%d sub=%d\n",
 			 g_conn ? 1 : 0, g_secure, g_report_subscribed);
 		bridge_send(buf);
+	} else if (strcmp(cmd, "unpair") == 0) {
+		/* Drop the bond and the live link, then re-advertise in pairing mode
+		 * (LIMITED discoverable) so the AC can pair this or another remote. */
+		int rc = bt_unpair(BT_ID_DEFAULT, NULL);
+		if (g_conn) {
+			bt_conn_disconnect(g_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+		} else {
+			bt_le_adv_stop();
+			emu_advertise();
+		}
+		char buf[32];
+		snprintk(buf, sizeof(buf), "ok unpair rc=%d\n", rc);
+		bridge_send(buf);
+		LOG_INF("bridge unpair rc=%d", rc);
+	} else if (strcmp(cmd, "pair") == 0) {
+		/* Ensure we're advertising for pairing (re-kick adv if idle). */
+		if (!g_conn) {
+			bt_le_adv_stop();
+			emu_advertise();
+		}
+		bridge_send("ok pair\n");
+		LOG_INF("bridge pair (advertising pairing mode)");
 	} else {
 		bridge_send("err\n");
 	}
@@ -604,11 +651,26 @@ int main(void)
 
 	resolve_report_attr();
 
-	/* Impersonate the real remote's public Cypress address (OUI 00:A0:50).
-	 * Little-endian: addr[0] = LSB / first octet on air. Before bt_enable().
-	 * Value comes from clone_addr.h (local-only) — see the include block above. */
-	static const uint8_t cypress_addr[6] = CLONE_ADDR_LE;
+	/* Public Cypress-OUI address (00:A0:50). Little-endian: addr[0]=LSB. Before
+	 * bt_enable(). A specific clone_addr.h overrides; otherwise (generic default)
+	 * derive a stable, unique per-device suffix from the chip's factory device
+	 * address — so each unit gets its own 00:A0:50:xx:xx:xx, like a real remote,
+	 * and it stays constant across reboots so the AC bond persists. */
+	static const uint8_t compiled_addr[6] = CLONE_ADDR_LE;
+	static const uint8_t generic_addr[6] = { 0x01, 0x00, 0x00, 0x50, 0xa0, 0x00 };
+	uint8_t cypress_addr[6];
+	if (memcmp(compiled_addr, generic_addr, sizeof(generic_addr)) != 0) {
+		memcpy(cypress_addr, compiled_addr, sizeof(cypress_addr));  /* pinned address */
+	} else {
+		uint32_t id = NRF_FICR->DEVICEADDR[0];      /* factory random device addr */
+		cypress_addr[0] = id & 0xff;
+		cypress_addr[1] = (id >> 8) & 0xff;
+		cypress_addr[2] = (id >> 16) & 0xff;
+		cypress_addr[3] = 0x50; cypress_addr[4] = 0xa0; cypress_addr[5] = 0x00;
+	}
 	bt_ctlr_set_public_addr(cypress_addr);
+	LOG_INF("public address 00:A0:50:%02x:%02x:%02x",
+		cypress_addr[2], cypress_addr[1], cypress_addr[0]);
 
 	err = bt_enable(NULL);
 	if (err) {
