@@ -2,10 +2,10 @@
 
 Stable, evidence-traced reference for the **Ganymede** remote and its **De'Longhi
 air-conditioner (AC)**. Every row carries a **Status** (`observed` / `inferred` /
-`partial` / `unknown`) and a **Source**. Sources live under `captures/` and
-`docs/re/` (the reverse-engineering analysis merged from the former `delonghi`
-project). Raw working notes: `ganymede_pairing_notes.md`. Readiness gate:
-`emulator_requirements.md`.
+`partial` / `unknown`) and a **Source**. Evidence is local-only sniffer/HCI capture
+(Linux/BlueZ `btmon`, Android HCI snoop, nRF Sniffer) kept under `captures/` (not
+committed — see `captures/README.md`). Board/build notes: [`HARDWARE.md`](HARDWARE.md);
+datasheets and the AC manual: [`references/`](references/).
 
 > **Goal:** a connected remote (nRF52840 BLE radio + ESP32 Wi-Fi) that emulates the
 > manual remote — enters pairing, is visible, **accepts the AC's connection**, then
@@ -15,11 +15,11 @@ project). Raw working notes: `ganymede_pairing_notes.md`. Readiness gate:
 
 | Field | Value | Status | Source |
 |---|---|---|---|
-| Device name | `Ganymede` | observed | docs/re/linux-capture-findings.md (btmon adv) |
-| Address | `00:A0:50:XX:XX:XX`, public | observed | docs/re/linux-capture-findings.md |
+| Device name | `Ganymede` | observed | Linux/BlueZ btmon capture (btmon adv) |
+| Address | `00:A0:50:XX:XX:XX`, public | observed | Linux/BlueZ btmon capture |
 | Silicon | Cypress (OUI `00:A0:50`) **CYBLE-212020-01 = PSoC 4 BLE**, Cortex-M0, **BLE 4.2** | observed | module marking + OUI; matches on-air BLE 4.2 |
-| Appearance | `0x03C1` (961, HID Keyboard) | observed | docs/re/linux-capture-findings.md |
-| Role | BLE **peripheral** (the AC is the central and connects to it) | observed | docs/re/android-capture-findings.md |
+| Appearance | `0x03C1` (961, HID Keyboard) | observed | Linux/BlueZ btmon capture |
+| Role | BLE **peripheral** (the AC is the central and connects to it) | observed | Android HCI snoop |
 | AC (central) address | `00:A0:50:XX:XX:XX`, public, Cypress (OUI `00:A0:50`) | observed | tshark on captures/raw/delonghi_re/ac-btsnoop.log (LE Connection Complete peer) |
 
 ## Advertising
@@ -36,9 +36,9 @@ sparse / low-power: ~3 s burst per pairing-button press.
 
 | Field | Value | Status | Source |
 |---|---|---|---|
-| **ADV_IND** (primary, 25 B) | Flags `06` + name `Ganymede` + UUID16 180A/180F/181A + appearance `0x03C1` — **no mfg data** | observed | docs/re/linux-capture-findings.md; tshark on captures/raw/delonghi_re/ganymede_pmode.btsnoop (event 0x0013) |
+| **ADV_IND** (primary, 25 B) | Flags `06` + name `Ganymede` + UUID16 180A/180F/181A + appearance `0x03C1` — **no mfg data** | observed | Linux/BlueZ btmon capture; tshark on captures/raw/delonghi_re/ganymede_pmode.btsnoop (event 0x0013) |
 | **SCAN_RSP** | **Cypress manufacturer data: type `0xFF`, Company ID `0x0131` (Cypress), payload `3b 04`** → on air `ff 31 01 3b 04` | **observed** | tshark on ganymede_pmode.btsnoop (event 0x001b, Scan Response=True) |
-| HID `0x1812` advertised? | **No** — discovered via GATT only | observed | docs/re/linux-capture-findings.md |
+| HID `0x1812` advertised? | **No** — discovered via GATT only | observed | Linux/BlueZ btmon capture |
 | AC active-scans + filters on the mfg data | **inferred** — the AC must SCAN_REQ to receive the mfg-bearing SCAN_RSP; emulator should put the Cypress mfg in its **scan response** to match. Necessity (does the AC connect without it?) = Phase-1 confirm | inferred | reasoning + emulator.c note |
 | Adv interval | sparse bursts (~8 s idle tier seen via nRF, `-49 dBm`) | observed | captures/raw/delonghi_re/*, this-repo nRF screenshot |
 
@@ -46,7 +46,7 @@ sparse / low-power: ~3 s burst per pairing-button press.
 
 | Service | UUID | Handle range | Status | Source |
 |---|---|---|---|---|
-| Generic Access | `0x1800` | 0x0001–0x0007 | observed | docs/re/android-capture-findings.md |
+| Generic Access | `0x1800` | 0x0001–0x0007 | observed | Android HCI snoop |
 | Generic Attribute | `0x1801` | 0x0008–0x000B | observed | " |
 | Device Information | `0x180A` | 0x000C–0x001A | observed | " |
 | Battery | `0x180F` | 0x001B–0x001D | observed | " |
@@ -55,7 +55,7 @@ sparse / low-power: ~3 s burst per pairing-button press.
 
 | Characteristic | UUID | Props | Value/decode | Status | Source |
 |---|---|---|---|---|---|
-| HID Report Map | `0x2A4B` | R | 61-byte boot-keyboard map (below) | observed | docs/re/android-capture-findings.md (btsnoop3) |
+| HID Report Map | `0x2A4B` | R | 61-byte boot-keyboard map (below) | observed | Android HCI snoop (btsnoop3) |
 | **HID Report (Input)** | **`0x2A4D`** | R, **Notify** | value handle **`0x003B`**, CCCD `0x2902`, Report Ref `0x2908`=`00 01` | observed | " |
 | HID Information | `0x2A4A` | R | `11 01 00 02` (bcdHID 0x0111, ctry 0, flags 0x02) | observed | emulator.c / snoop |
 | HID Control Point | `0x2A4C` | WNR | (unused) | observed | " |
@@ -73,14 +73,7 @@ sparse / low-power: ~3 s burst per pairing-button press.
 | Temperature | `0x2A6E` | R, Notify | sint16 LE / 100 °C | observed | " |
 | Humidity | `0x2A6F` | R, Notify | uint16 LE / 100 % | observed | " |
 | Pressure | `0x2A6D` | R, Notify | uint32 LE / 10 Pa | observed | " |
-| Pref. Conn. Params | `0x2A04` | R | `80 0C 80 0C 00 00 B8 0B` = 4000 ms / 4000 ms / lat 0 / superv 30000 ms | observed | docs/re/android-capture-findings.md |
-
-> **⚠️ Emulator gap (found 2026-06-03):** the current Bluefruit port **advertises**
-> `0x180A` but does **not implement** the Device Information service — the AC's GATT
-> discovery of the emulator shows GAP/GATT/HID/Battery/Env, **no 0x180A**. The real
-> remote exposes the full Device-Info set above. **Implement it** (it may, with the
-> PnP ID, be part of how the AC validates a CST remote — though the LL-version gate is
-> the primary blocker).
+| Pref. Conn. Params | `0x2A04` | R | `80 0C 80 0C 00 00 B8 0B` = 4000 ms / 4000 ms / lat 0 / superv 30000 ms | observed | Android HCI snoop |
 
 ### HID Report Map (`0x2A4B`) — 61 bytes, verbatim
 ```
@@ -107,7 +100,7 @@ Each press emits **one 8-byte notification, duplicated 2× on air, no key-releas
 | Silent | D2 | `00 00 80 00 00 00 00 00` | byte2 b7 | observed |
 | Flap / swing | D9 | `00 00 00 01 00 00 00 00` | byte3 b0 | observed |
 
-Source: docs/re/android-capture-findings.md (labeled via press-count in
+Source: Android HCI snoop (labeled via press-count in
 `captures/raw/delonghi_re/ganymede-btsnoop4.log`).
 
 ## Link-Layer identity — THE PAIRING GATE (the real blocker)
@@ -130,32 +123,31 @@ pair** — it never sends the Pairing Request and drops into discover-only. Repr
 repeatedly; the GATT is fully discovered but no SMP occurs.
 
 → The LL Version Company ID is **baked into the SoftDevice and not settable from
-Bluefruit/Arduino**. Faking it (Company `0x0131`, version 4.2) requires the **Zephyr /
-nRF Connect SDK** controller (`CONFIG_BT_CTLR_COMPANY_ID`, version config). The address
-OUI `00:A0:50` (Cypress) is a second possible check, easy to fake via a public address —
-**test that first** before committing to the Zephyr port.
+Bluefruit/Arduino**, so the emulator runs on the **Zephyr / nRF Connect SDK** controller.
+**Solved:** setting a **public address with the Cypress OUI `00:A0:50`**
+(`bt_ctlr_set_public_addr`, works under the SoftDevice Controller) is sufficient — the AC
+then sends the Pairing Request and **bonds**. The address OUI, not the reported LL company
+ID, is the gate in practice. Bluefruit/Arduino remains a dead end.
 
 ## Pairing / security (SMP)
 
 | Direction | Method | Status | Source |
 |---|---|---|---|
 | central → **remote** (Android phone `08:38:e6…` as central) | **Just Works LEGACY**: remote responds IO=NoInputNoOutput, AuthReq Bonding (**SC=0, MITM=0**), key size 16, distributes **LTK+IRK+CSRK** | **observed** | ganymede_bt.zip + captures/raw/delonghi_re/ac-btsnoop.log (tshark `btsmp`) |
-| **AC → emulated remote** | **NOT achieved.** *Correction:* the earlier "~8 AC↔clone bonds" cited as proof were mis-identified — `ac-btsnoop.log`/`ganymede_bt.zip` are the **phone (08:38:e6, central)** pairing the real remote **and** the AC, **not the AC pairing an emulator.** The AC pairing a non-Cypress peripheral has **never been observed**, and hands-on testing shows it **refuses** (see §Link-Layer identity). | **refuted** | this session's nRF emulator captures (captures/raw/ganymede_emu_*_20260603.pcap) |
-| LTK between **real remote ↔ AC** | not captured (encrypted reconnect = `LL_ENC_REQ` with stored LTK; on-air shows bad-MIC without the key) | **unknown** | captures/raw/ganymede_pairing_follow_20260603.pcap |
+| **AC → emulated remote** | **Achieved.** Once the Zephyr emulator advertises with a Cypress-OUI public address (see §Link-Layer identity), the **AC sends the Pairing Request and bonds** (`secure=1`). SMP is the same Just Works legacy method. | **observed** | nRF emulator on-air |
 
-→ SMP **method** for the responder is settled (Just Works, NoInputNoOutput, no passkey).
-But that is **not** the blocker — the **LL-identity gate above is**. Bluefruit is
-sufficient for the SMP method; it is **not** sufficient to pass the AC's chip-identity
-check.
+→ The responder SMP **method** is settled (Just Works, NoInputNoOutput, no passkey, key
+size 16, distributes LTK+IRK+CSRK). The method was never the blocker — the **Cypress
+link-layer identity gate** was; with the OUI public address the AC pairs and bonds.
 
 ## Connection behaviour
 
 | Field | Value | Status | Source |
 |---|---|---|---|
-| Establishment | a **lottery**: most attempts drop with HCI `0x3e` ("Connection Failed to be Established") in the ~6-event window | observed | docs/re/linux-capture-findings.md |
-| Working params (central→remote) | **fast 30–50 ms interval (neg 48.75 ms), supervision 5000 ms, latency 0**, NO concurrent scan, remote held in pairing mode | observed | docs/re/linux-capture-findings.md |
+| Establishment | a **lottery**: most attempts drop with HCI `0x3e` ("Connection Failed to be Established") in the ~6-event window | observed | Linux/BlueZ btmon capture |
+| Working params (central→remote) | **fast 30–50 ms interval (neg 48.75 ms), supervision 5000 ms, latency 0**, NO concurrent scan, remote held in pairing mode | observed | Linux/BlueZ btmon capture |
 | Post-bond | remote requests ~400 ms; advertises 4000 ms preferred (`0x2A04`) | observed | " |
-| One central at a time | yes — a bonded phone / the AC steal the link | observed | docs/re/android-capture-findings.md |
+| One central at a time | yes — a bonded phone / the AC steal the link | observed | Android HCI snoop |
 
 ## Pairing procedure (from the De'Longhi/Pinguino manual — "RÉPÉTER L'APPARIEMENT")
 
@@ -171,24 +163,38 @@ Two-sided, ordered, 60 s window:
    within 60 s.** (Test rig note: this unit's buzzer is broken → use the *rapid* dot
    blink as the pairing-mode confirmation.)
 
-Status: observed (user + manual). Source: De'Longhi manual excerpt in
-`ganymede_pairing_notes.md`.
+Status: observed (user + manual). Source: De'Longhi Pinguino manual
+(`references/delonghi_AC_manual.pdf`).
 
-## Hardware reception (why ESP32 fails both ways)
+## Hardware reception (why the BLE lives on the nRF, not the ESP32)
 
-| Observer | Sees real remote (sniff)? | AC connects to its emulator? | Source |
-|---|:--:|:--:|---|
-| Linux/BlueZ | ✅ | — | docs/re/esp32-cannot-scan-remote-investigation.md |
-| Android (nRF Connect) | ✅ | **unproven** — the phone paired the remote/AC *as a central*; the AC pairing an Android *peripheral* clone was never actually captured (see §Pairing correction) | docs/re/*.md |
-| **ESP32-S3 / C3** | ❌ never | ❌ never | docs/re/esp32-cannot-scan-remote-investigation.md |
-| **nRF52840 (Bluefruit)** | ✅ sniffs fine | ❌ AC connects + discovers but **refuses to pair** (Nordic LL identity) | this session's captures |
+| Observer | Sees real remote (sniff)? | AC pairs its emulator? |
+|---|:--:|:--:|
+| Linux/BlueZ | ✅ | — |
+| Android | ✅ | — |
+| **ESP32-S3 / C3** | ❌ never | ❌ never |
+| **nRF52840 (Zephyr/NCS)** | ✅ (nRF Sniffer) | ✅ **bonds** (Cypress-OUI public address) |
 
-The ESP32-S3/C3 **radio/controller cannot lock onto** the remote's brief low-power
-Cypress `ADV_IND` (host-level levers exhausted), and the AC never connects to the
-ESP32 emulator — while Android (another non-ESP radio) succeeds at both. **The
-ESP32-S3 SuperMini radio is the common failure factor** → BLE moves to the
-**nRF52840** (sniffer + emulator); the ESP32 is Wi-Fi-only. (ESP32-C6 historically
-worked under PlatformIO — noted, not pursued.)
+The ESP32-S3/C3 **radio cannot lock onto** the remote's brief low-power Cypress `ADV_IND`,
+and the AC never accepts an ESP32 emulator — while a phone (a different radio) does both.
+So BLE lives entirely on the **nRF52840** (sniffer + emulator) and the **ESP32 is
+Wi-Fi-only**. See [`HARDWARE.md`](HARDWARE.md) for board details.
+
+## Status — working end to end
+
+| Step | State |
+|---|:--:|
+| nRF Sniffer captures the remote on-air | ✅ |
+| AC discovers the emulator + walks its full GATT | ✅ |
+| AC **bonds** with the emulator (Cypress-OUI public address) | ✅ |
+| HID report relay (CCC force-enabled server-side; the AC doesn't subscribe) | ✅ |
+| `press power` (and all 9 buttons) changes the AC's state, confirmed on-air | ✅ |
+| LAN control: MQTT/HTTP → ESP32 → UART → nRF → AC | ✅ |
+
+Connecting **as a central** to the real remote (for a live GATT re-read) is a lottery —
+use a fast 30–50 ms interval with a ~5 s supervision timeout, **no concurrent scan**, and
+hold the remote in pairing mode; most attempts drop with HCI `0x3E`, just retry
+(`tools/linux-ble/`).
 
 ## Reference implementation
 

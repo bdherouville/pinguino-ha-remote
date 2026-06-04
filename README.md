@@ -75,8 +75,8 @@ For reverse engineering / sniffing, see [`tools/nrf_sniffer/README.md`](tools/nr
 This is the condensed story of how the Ganymede remote works and how it was reverse
 engineered. The **authoritative, evidence-traced** version — every claim tagged with a
 `Status` (`observed`/`inferred`/`partial`/`unknown`) and a `Source` capture — lives in
-[`docs/ganymede_protocol.md`](docs/ganymede_protocol.md), with the raw analysis under
-[`docs/re/`](docs/re/).
+[`docs/ganymede_protocol.md`](docs/ganymede_protocol.md); board/build specifics are in
+[`docs/HARDWARE.md`](docs/HARDWARE.md).
 
 ### How it was reverse engineered
 
@@ -208,8 +208,8 @@ it acknowledges; the AC's display dot blinks rapidly during the pairing window.
 | `firmware/nrf52_emulator/` | nRF52840 BLE remote emulator (`zephyr/` = working; `reference/` = NimBLE source-of-truth) |
 | `tools/nrf_sniffer/` | Nordic nRF Sniffer firmware + Wireshark extcap + capture helper |
 | `tools/linux-ble/` | Linux/BlueZ central harness to test the emulator before the AC |
-| `docs/` | Protocol spec, emulator readiness gate, and reverse-engineering analysis |
-| `docs/re/` | Merged De'Longhi RE notes + device datasheets/manual |
+| `docs/` | `ganymede_protocol.md` (protocol & RE findings) + `HARDWARE.md` (board/build notes) |
+| `docs/references/` | Device datasheets + De'Longhi AC manual (PDF) |
 | `captures/` | **Local-only** RE captures (excluded from git — see `captures/README.md`) |
 | `CLAUDE.md` | Internal guidance for the Claude Code agent (not user docs) |
 

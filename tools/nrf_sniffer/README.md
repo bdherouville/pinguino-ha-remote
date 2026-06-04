@@ -84,5 +84,5 @@ to `LL_ENC_REQ` with the stored LTK. Confirms the AC address and the bonded-reco
 The reconnect carries no pairing exchange. To capture the AC's **Pairing Request**
 (AuthReq / IO cap / key dist) on-air, force a **fresh pair**: clear the existing bond
 (remote and/or AC), then `capture.py … --follow 00:A0:50:XX:XX:XX` while the AC re-pairs.
-That `.pcap` flips `docs/ganymede_protocol.md` §Pairing rows to Status `observed`. (SMP was
-already inferred = Just Works from the merged `docs/re/` btsnoops; this would confirm it.)
+That `.pcap` flips `docs/ganymede_protocol.md` §Pairing rows to Status `observed`. (SMP is
+already known = Just Works legacy from the Android/Linux captures; this would re-confirm it.)

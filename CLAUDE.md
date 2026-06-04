@@ -45,12 +45,11 @@ Status: protocol fully reverse-engineered; **blocker = AC-side SMP** (Phase 1).
 
 ## Layout
 
-- `docs/ganymede_protocol.md` — **authoritative** protocol (advertising, GATT, Report
-  Map, 9-button map, SMP, connection). `emulator_requirements.md` — readiness gate.
-  `ganymede_pairing_notes.md` — raw working log.
-- `docs/re/` — merged De'Longhi RE analysis (verbatim, source evidence).
-- `captures/raw/` — immutable captures (incl. `delonghi_re/` btsnoops); `exports/`
-  derived. **Never edit raw; never commit unredacted keys (LTK/IRK/CSRK/passkeys).**
+- `docs/ganymede_protocol.md` — **authoritative** protocol & RE findings (advertising,
+  GATT, Report Map, 9-button map, link-layer identity gate, SMP, connection, status).
+  `docs/HARDWARE.md` — board/build notes. `docs/references/` — datasheets + AC manual.
+- `captures/` — **local-only**, git-ignored immutable captures (sniffer/HCI). **Never
+  edit raw; never commit unredacted keys (LTK/IRK/CSRK/passkeys).**
 - `firmware/nrf52_emulator/reference/esp-idf-nimble/` — the working delonghi NimBLE
   emulator: **source of truth for the port**, not built here.
 - `tools/linux-ble/` — Linux/BlueZ central harness to test the emulator before the AC.
@@ -58,7 +57,7 @@ Status: protocol fully reverse-engineered; **blocker = AC-side SMP** (Phase 1).
 ## Documentation discipline
 
 Every protocol claim carries a **Status** (`observed`/`inferred`/`partial`/`unknown`)
-and a **Source** (a file under `captures/` or `docs/re/`). Never upgrade a Status
+and a **Source** (a capture under `captures/`). Never upgrade a Status
 without a capture. Never hard-code an emulator value whose requirement row is still
 `unknown` (today: the AC-side SMP).
 

@@ -21,12 +21,13 @@ the `Ganymede` device — De'Longhi remotes use the Cypress OUI `00:A0:50`.
 
 | Script | Purpose |
 |--------|---------|
-| `scan_ganymede.py` / `scan_pairing_mode.py` | discover the remote / catch it in pairing mode |
-| `probe_ganymede.py` | connect + enumerate services / characteristics / descriptors |
-| `pair_dbus.py`, `pair_btctl.sh`, `pair_btctl2.sh` | pair via D-Bus / `bluetoothctl` |
-| `connect_btctl.sh`, `autoconnect_btctl.sh` | connect / auto-reconnect |
-| `set_conn_params.py` | adjust connection parameters |
-| `detect_patient.py`, `sync_signal_test.py` | connection/timing experiments |
+| `set_conn_params.py` | load the fast per-device LE conn params (30–50 ms / 5 s supervision) the remote needs — **run first** |
+| `scan_ganymede.py` | discover the remote / emulator and dump its advertising payload |
+| `probe_ganymede.py` | connect + pair + enumerate the full GATT + capture HID notifications |
 
-Requires BlueZ + `python3-dbus`. Keep the host adapter's other bonds out of the way so it
-doesn't auto-steal the remote (`bluetoothctl remove <addr>` / `rfkill`).
+Typical flow: `set_conn_params.py` → `scan_ganymede.py` → `probe_ganymede.py`.
+
+Requires BlueZ + `bleak`. Connecting to the real remote is a lottery (most attempts drop
+with HCI `0x3E`) — retry, with no concurrent scan and the remote in pairing mode. Keep the
+host adapter's other bonds out of the way so it doesn't auto-steal the remote
+(`bluetoothctl remove <addr>` / `rfkill`).
