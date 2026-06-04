@@ -122,11 +122,16 @@ bool rules_set(const rule_t *in, int count)
 
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    nvs_set_u8(h, NVS_VER_KEY, RULES_VER);
-    nvs_set_blob(h, NVS_KEY, in, count * sizeof(rule_t));
-    esp_err_t e = nvs_commit(h);
+    // Bail on the first failing write so we never report success (or update RAM) for a save
+    // that won't survive a reboot — e.g. a full NVS partition.
+    esp_err_t e = nvs_set_u8(h, NVS_VER_KEY, RULES_VER);
+    if (e == ESP_OK) e = nvs_set_blob(h, NVS_KEY, in, count * sizeof(rule_t));
+    if (e == ESP_OK) e = nvs_commit(h);
     nvs_close(h);
-    if (e != ESP_OK) return false;
+    if (e != ESP_OK) {
+        ESP_LOGW(TAG, "rules NVS save failed: %s", esp_err_to_name(e));
+        return false;
+    }
 
     memcpy(s_rules, in, count * sizeof(rule_t));
     s_count = count;
