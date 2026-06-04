@@ -70,18 +70,23 @@ bool pins_save(const device_pins_t *p)
 
     nvs_handle_t h;
     if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    nvs_set_u8(h, "i2c_sda", p->i2c_sda);
-    nvs_set_u8(h, "i2c_scl", p->i2c_scl);
-    nvs_set_u8(h, "nrf_tx",  p->nrf_tx);
-    nvs_set_u8(h, "nrf_rx",  p->nrf_rx);
-    nvs_set_u8(h, "nrf_hb",  p->nrf_hb);
-    nvs_set_u8(h, "ld_tx",   p->ld_tx);
-    nvs_set_u8(h, "ld_rx",   p->ld_rx);
-    esp_err_t e = nvs_commit(h);
+    // Bail on the first failing write so a partial persist (e.g. full NVS) isn't reported as
+    // success — otherwise the device could come back on a mixed pin map after reboot.
+    esp_err_t e = nvs_set_u8(h, "i2c_sda", p->i2c_sda);
+    if (e == ESP_OK) e = nvs_set_u8(h, "i2c_scl", p->i2c_scl);
+    if (e == ESP_OK) e = nvs_set_u8(h, "nrf_tx",  p->nrf_tx);
+    if (e == ESP_OK) e = nvs_set_u8(h, "nrf_rx",  p->nrf_rx);
+    if (e == ESP_OK) e = nvs_set_u8(h, "nrf_hb",  p->nrf_hb);
+    if (e == ESP_OK) e = nvs_set_u8(h, "ld_tx",   p->ld_tx);
+    if (e == ESP_OK) e = nvs_set_u8(h, "ld_rx",   p->ld_rx);
+    if (e == ESP_OK) e = nvs_commit(h);
     nvs_close(h);
-    if (e != ESP_OK) return false;
+    if (e != ESP_OK) {
+        ESP_LOGW(TAG, "pins NVS save failed: %s", esp_err_to_name(e));
+        return false;
+    }
 
-    s = *p;   // adopt only after a successful commit
+    s = *p;   // adopt only after a fully successful commit
     ESP_LOGI(TAG, "pins saved — reboot to apply");
     return true;
 }
