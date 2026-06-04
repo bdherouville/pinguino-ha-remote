@@ -19,6 +19,12 @@ A nice!nano-v2-compatible "Pro Micro" clone. Cheap and flaky — buy spares.
   (kills the board).
 - **App flash offset `0x1000`** (no SoftDevice layout). Images linked at `0x26000` jump to
   empty flash and nothing runs — the board's defconfig/partitioning pins it at `0x1000`.
+- **Bootloader upgrade (one-time, required on a new board).** Boards ship with an old/SoftDevice
+  bootloader that can't boot the `0x1000` no-SoftDevice app. Enter the bootloader and drag
+  **`update-nice_nano_bootloader-0.9.2_nosd.uf2`** (the *no-SoftDevice* variant from
+  [Adafruit_nRF52_Bootloader 0.9.2](https://github.com/adafruit/Adafruit_nRF52_Bootloader/releases/tag/0.9.2),
+  also attached to our releases) onto the `NICENANO` drive, then flash the app. We upgraded
+  0.6.0 → 0.9.2 this way; older 2021 bootloaders were too old to take the app.
 - **Toolchain:** nRF Connect SDK (Zephyr) with Nordic's SoftDevice Controller (`sdc`/MPSL).
   The vanilla open-source controller (`BT_LL_SW_SPLIT`) hangs at init on this board.
 - **Why Zephyr (not Bluefruit):** the AC's pairing gate checks the link-layer chip

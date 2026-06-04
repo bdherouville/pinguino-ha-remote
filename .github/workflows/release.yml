@@ -1,0 +1,92 @@
+name: release
+
+# Cut a release by pushing a version tag:  git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ---- ESP32-S3 Wi-Fi bridge (ESP-IDF v6.0.1) --------------------------------
+  esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + merge single flashable image
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0.1
+          target: esp32s3
+          path: firmware/esp32_bridge
+          # Build, then merge bootloader+partitions+app into one image flashable at 0x0
+          # (offsets from build/flasher_args.json; flash settings dio/80m/2MB).
+          command: >-
+            idf.py build &&
+            esptool --chip esp32s3 merge-bin -o ganymede-bridge-esp32s3.bin -f raw
+            --flash-mode dio --flash-freq 80m --flash-size 2MB
+            0x0 build/bootloader/bootloader.bin
+            0x8000 build/partition_table/partition-table.bin
+            0x10000 build/ganymede_bridge.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32
+          path: firmware/esp32_bridge/ganymede-bridge-esp32s3.bin
+
+  # ---- nRF52840 BLE emulator (nRF Connect SDK v2.7.0, out-of-tree board) ------
+  # Builds with the git-ignored clone_addr.h ABSENT, so the firmware falls back to
+  # clone_addr.h.example (generic Cypress-OUI address 00:A0:50:00:00:01) — pairs by
+  # fresh-pairing with any De'Longhi AC.
+  nrf:
+    runs-on: ubuntu-latest
+    container: ghcr.io/zephyrproject-rtos/ci:v0.27.4
+    env:
+      CMAKE_PREFIX_PATH: /opt/toolchains
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project
+      - name: Initialise NCS v2.7.0 workspace
+        run: |
+          west init -m https://github.com/nrfconnect/sdk-nrf --mr v2.7.0 ncs
+          cd ncs && west update --narrow -o=--depth=1
+          west zephyr-export
+      - name: Build emulator
+        working-directory: ncs
+        run: |
+          APP="$GITHUB_WORKSPACE/project/firmware/nrf52_emulator/zephyr"
+          west build -b nice_nano/nrf52840 "$APP" -d build_ncs -- -DBOARD_ROOT="$APP"
+          cp build_ncs/zephyr/zephyr.uf2 "$GITHUB_WORKSPACE/ganymede-emulator-nrf52840.uf2"
+      - name: Fetch the nRF bootloader-update UF2 (no-SoftDevice, one-time upgrade)
+        run: |
+          curl -fL -o update-nice_nano_bootloader-0.9.2_nosd.uf2 \
+            https://github.com/adafruit/Adafruit_nRF52_Bootloader/releases/download/0.9.2/update-nice_nano_bootloader-0.9.2_nosd.uf2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nrf
+          path: |
+            ganymede-emulator-nrf52840.uf2
+            update-nice_nano_bootloader-0.9.2_nosd.uf2
+
+  # ---- collect artifacts + publish the GitHub Release -------------------------
+  release:
+    needs: [esp32, nrf]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Flatten + checksums
+        run: |
+          mkdir -p out
+          find dist -type f -exec cp {} out/ \;
+          (cd out && sha256sum * > SHA256SUMS)
+          ls -l out
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

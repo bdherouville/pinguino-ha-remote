@@ -1,0 +1,16 @@
+{
+  "name": "Ganymede Bridge (ESP32-S3)",
+  "version": "latest",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "https://github.com/bdherouville/pinguino-ha-remote/releases/latest/download/ganymede-bridge-esp32s3.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
