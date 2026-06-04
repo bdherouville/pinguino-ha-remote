@@ -1,0 +1,22 @@
+name: ci
+
+# Build the ESP32 firmware on every PR into dev/main so branch protection has a
+# required status check. Both active features only touch firmware/esp32_bridge,
+# so the ESP-IDF build is the gate. (release.yml still cuts tagged releases.)
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  build-esp32:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ESP32-S3 bridge (ESP-IDF v6.0.1)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0.1
+          target: esp32s3
+          path: firmware/esp32_bridge
+          command: idf.py build
