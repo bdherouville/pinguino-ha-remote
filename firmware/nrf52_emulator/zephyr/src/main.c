@@ -15,7 +15,6 @@
  *   slow 1 Hz blink           = advertising (waiting for the AC)
  *   fast 4 Hz blink           = connected, not yet bonded/encrypted
  *   solid ON                  = bonded + encrypted  (<-- pairing gate PASSED)
- *   3 quick flashes           = auto-sent a "power" press
  *
  * Source of truth: firmware/nrf52_emulator/reference/esp-idf-nimble/main/emulator.c
  */
@@ -88,7 +87,6 @@ static uint32_t g_press_x10  = 1013000;
 static struct bt_conn *g_conn;
 static volatile bool g_secure;          /* encrypted + bonded */
 static volatile bool g_report_subscribed;
-static volatile bool g_flash_pulse;     /* LED: blip 3x to mark an auto-press */
 
 /* The SuperMini's user-LED pin varies; drive ALL likely candidates together so
  * the status pattern is visible regardless of which pin the LED is wired to.
@@ -198,15 +196,10 @@ static ssize_t rd_pad(struct bt_conn *c, const struct bt_gatt_attr *a,
 /* number of filler handles inserted into Env to align HID -> 0x0037 */
 #define ENV_PAD 22
 
-/* auto-press scheduling lives below; forward-declare the trigger. */
-static void schedule_auto_press(void);
 static void report_ccc_changed(const struct bt_gatt_attr *a, uint16_t value)
 {
 	g_report_subscribed = (value & BT_GATT_CCC_NOTIFY) != 0;
 	LOG_INF("HID report CCC -> 0x%04x", value);
-	if (g_report_subscribed) {
-		schedule_auto_press();
-	}
 }
 
 /* ---- GATT services -------------------------------------------------------- */
@@ -322,7 +315,7 @@ static void emu_advertise(void)
 	LOG_INF("advertising as \"%s\"", DEVICE_NAME);
 }
 
-/* ---- send a button report + autonomous /goal test ------------------------- */
+/* ---- send a button report ------------------------------------------------- */
 
 static int emu_send_report(uint8_t b2, uint8_t b3)
 {
@@ -341,22 +334,9 @@ static int emu_send_report(uint8_t b2, uint8_t b3)
 	return rc;
 }
 
-static void auto_press_fn(struct k_work *work)
-{
-	if (g_conn && g_secure && g_report_subscribed) {
-		int rc = emu_send_report(0x01, 0x00);   /* power */
-		LOG_INF("auto-press power rc=%d", rc);
-		g_flash_pulse = true;
-	}
-}
-static K_WORK_DELAYABLE_DEFINE(auto_press_work, auto_press_fn);
-
-static void schedule_auto_press(void)
-{
-	/* Fire ~8 s after the AC subscribes to HID notifications, so we can watch
-	 * the AC react to a single "power" press (the /goal). */
-	k_work_reschedule(&auto_press_work, K_SECONDS(8));
-}
+/* No autonomous press: the AC only acts on an explicit `press <btn>` command
+ * from the ESP32 (web / MQTT / HTTP) — so plugging the boards in never turns
+ * the AC on by itself. */
 
 /* ---- connection callbacks ------------------------------------------------- */
 
@@ -377,7 +357,6 @@ static void on_connected(struct bt_conn *conn, uint8_t err)
 static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	LOG_INF("disconnected (reason 0x%02x)", reason);
-	k_work_cancel_delayable(&auto_press_work);
 	g_secure = false;
 	g_report_subscribed = false;
 	if (g_conn) {
@@ -423,13 +402,6 @@ static void led_set(int on)
 static void led_thread(void *a, void *b, void *c)
 {
 	while (1) {
-		if (g_flash_pulse) {           /* mark an auto-press: 3 quick blips */
-			g_flash_pulse = false;
-			for (int i = 0; i < 3; i++) {
-				led_set(1); k_msleep(60); led_set(0); k_msleep(60);
-			}
-			continue;
-		}
 		if (g_conn && g_secure) {              /* BONDED: solid on */
 			led_set(1); k_msleep(200);
 		} else if (g_conn) {                   /* connected, not bonded: 4 Hz */
