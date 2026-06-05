@@ -61,8 +61,14 @@
   .ac-row2 { display:flex; align-items:center; gap:2.4cqw; font-size:clamp(8px,2cqw,14px); }
   .ac-row2 .ind { color:#46525e; letter-spacing:.06em; font-weight:700; transition:.2s; }
   .ac-row2 .ind.on { color:#34d399; text-shadow:0 0 8px rgba(52,211,153,.6); }
-  .ac-row2 .amb { margin-left:auto; color:#7fb8cf; font-weight:400; }
-  .ac-row2 .amb b { color:#cfeffb; }
+  .ac-row2 .tclock { font-size:1.4em; line-height:1; vertical-align:-0.14em; }
+  /* digital barometer (temp / humidity / pressure) row inside the screen */
+  .baro { display:flex; justify-content:space-between; align-items:baseline; gap:2cqw; }
+  .baro .cell { display:flex; align-items:baseline; gap:.7cqw; }
+  .baro .ic { font-size:clamp(9px,2.4cqw,16px); }
+  .baro b { font-size:clamp(13px,4cqw,30px); font-weight:600; color:#e8f9ff;
+            text-shadow:0 0 8px rgba(56,189,248,.4); }
+  .baro small { font-size:clamp(7px,1.7cqw,12px); color:#7fb8cf; }
   .sync-banner { margin-top:10px; padding:10px 12px; border-radius:8px; font-size:13px;
     background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.45); color:#fde68a; }
 
@@ -118,16 +124,11 @@
     stroke-width:7.5; stroke-linecap:round; stroke-linejoin:round; fill:none; }
 
   /* the little "screen" in the freed space below the buttons */
-  .screen { position:absolute; left:6%; right:6%; bottom:5.5%; height:30%; z-index:2;
-    border-radius:3cqw; padding:2cqw 3.4cqw; background:linear-gradient(180deg,#05090f,#020406);
+  .screen { position:absolute; left:6%; right:6%; bottom:5%; height:37%; z-index:2;
+    border-radius:3cqw; padding:1.8cqw 3.4cqw; background:linear-gradient(180deg,#05090f,#020406);
     border:1px solid rgba(56,189,248,.22);
     box-shadow:inset 0 0 4cqw rgba(56,189,248,.10), inset 0 1px 0 rgba(255,255,255,.05), 0 1cqw 2cqw rgba(0,0,0,.4);
-    display:flex; flex-direction:column; justify-content:center; gap:1.2cqw; color:#cfeffb; font-variant-numeric:tabular-nums; }
-  .metrics { display:flex; align-items:baseline; gap:3.4cqw; }
-  .metric { display:flex; align-items:baseline; gap:.5cqw; }
-  .metric b { font-size:clamp(20px,6.6cqw,58px); font-weight:600; color:#e8f9ff; text-shadow:0 0 10px rgba(56,189,248,.45); }
-  .metric small { font-size:clamp(9px,2cqw,16px); color:#7fb8cf; }
-  .sep { width:1px; align-self:stretch; background:rgba(120,180,210,.16); margin:1.4cqw 0; }
+    display:flex; flex-direction:column; justify-content:center; gap:1cqw; color:#cfeffb; font-variant-numeric:tabular-nums; }
   .statusbar { display:flex; align-items:center; gap:1cqw; font-size:clamp(9px,2.1cqw,15px); color:#8fb6c8; }
   .statusbar .grp { display:flex; align-items:center; gap:.7cqw; }
   .statusbar .grp+.grp { margin-left:2.4cqw; }
@@ -139,8 +140,11 @@
   @container (max-width:520px) {
     .top-row { top:10%; gap:4%; }
     .middle-row { top:34%; }
-    .screen { height:32%; }
+    .screen { height:40%; }
   }
+  /* header language switcher */
+  #langSel { width:auto; margin:0; padding:4px 6px; font-size:12px; border-radius:6px;
+    border:1px solid #2b3543; background:#0d1117; color:var(--fg); }
 </style>
 </head>
 <body>
@@ -148,10 +152,11 @@
   <span id="dot"></span>
   <h1>Ganymede Bridge</h1>
   <span id="st" class="small" style="margin-left:auto"></span>
+  <select id="langSel" aria-label="Language"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option></select>
 </header>
 <main>
   <div class="card">
-    <h2>Télécommande</h2>
+    <h2 data-i18n="remote">Télécommande</h2>
     <div class="remote" id="remote">
 
       <section class="top-row">
@@ -222,8 +227,12 @@
           <span class="ind" id="indEco">ECO</span>
           <span class="ind" id="indSilent">SILENT</span>
           <span class="ind" id="indSwing">SWING</span>
-          <span class="ind" id="indTimer">⏱</span>
-          <span class="amb">amb <b id="scrT">--.-</b>° <b id="scrH">--</b>%</span>
+          <span class="ind" id="indTimer"><span class="tclock">⏱</span></span>
+        </div>
+        <div class="baro">
+          <span class="cell"><span class="ic">🌡</span><b id="scrT">--.-</b><small>°C</small></span>
+          <span class="cell"><span class="ic">💧</span><b id="scrH">--</b><small>%</small></span>
+          <span class="cell"><span class="ic">🧭</span><b id="scrP">----</b><small>hPa</small></span>
         </div>
         <div class="statusbar">
           <div class="grp"><span class="sdot" id="dWifi"></span>Wi-Fi</div>
@@ -236,41 +245,41 @@
     </div>
 
     <div id="syncBanner" class="sync-banner" style="display:none">
-      ⟳ Mode synchro <b id="syncCount">30</b> s — appuyez sur les touches pour reproduire l'état
-      <b>affiché par le climatiseur</b>. Aucun signal n'est envoyé.
+      ⟳ <span data-i18n="syncBanA">Mode synchro</span> <b id="syncCount">30</b> s —
+      <span data-i18n="syncBanB">appuyez sur les touches pour reproduire l'état affiché par le climatiseur. Aucun signal n'est envoyé.</span>
     </div>
     <div style="display:flex; gap:8px; margin-top:10px">
-      <button class="ui" onclick="syncWindow()">⟳ Synchroniser (30 s)</button>
+      <button class="ui" data-i18n="sync30" onclick="syncWindow()">⟳ Synchroniser (30 s)</button>
     </div>
-    <p class="small" style="margin-top:8px">L'écran reflète l'état <b>modélisé</b> du climatiseur
-      (boucle ouverte). En cas de dérive, lancez « Synchroniser » et reproduisez sur les touches
-      l'état réellement affiché par le climatiseur — rien n'est envoyé pendant ces 30 s.</p>
+    <p class="small" data-i18n="syncHelp" style="margin-top:8px">L'écran reflète l'état modélisé du
+      climatiseur (boucle ouverte). En cas de dérive, lancez « Synchroniser » et reproduisez sur les
+      touches l'état réellement affiché par le climatiseur — rien n'est envoyé pendant ces 30 s.</p>
   </div>
 
   <div class="card" id="wifiCard">
     <h2>Wi-Fi</h2>
     <p class="small" id="wifiState"></p>
-    <button class="ui" onclick="scan()">Scanner les réseaux</button>
+    <button class="ui" data-i18n="scan" onclick="scan()">Scanner les réseaux</button>
     <ul id="aps"></ul>
     <input id="ssid" placeholder="SSID">
-    <input id="pass" type="password" placeholder="Mot de passe">
-    <button class="ui" onclick="connect()">Se connecter</button>
+    <input id="pass" type="password" data-i18n-ph="ph_pass" placeholder="Mot de passe">
+    <button class="ui" data-i18n="connect" onclick="connect()">Se connecter</button>
   </div>
 
   <div class="card" id="mqttCard">
     <h2>Home Assistant (MQTT)</h2>
     <p class="small" id="mqttState"></p>
-    <input id="mhost" placeholder="Broker (ex: 192.168.0.x)">
+    <input id="mhost" data-i18n-ph="ph_broker" placeholder="Broker (ex: 192.168.0.x)">
     <input id="mport" placeholder="Port (1883)" inputmode="numeric">
-    <input id="muser" placeholder="Utilisateur (optionnel)">
-    <input id="mpass" type="password" placeholder="Mot de passe (optionnel)">
-    <button class="ui" onclick="saveMqtt()">Enregistrer &amp; connecter</button>
-    <p class="small">9 boutons + 3 capteurs + présence + l'état nRF sont publiés en auto-découverte HA.</p>
+    <input id="muser" data-i18n-ph="ph_user" placeholder="Utilisateur (optionnel)">
+    <input id="mpass" type="password" data-i18n-ph="ph_passopt" placeholder="Mot de passe (optionnel)">
+    <button class="ui" data-i18n="haSave" onclick="saveMqtt()">Enregistrer &amp; connecter</button>
+    <p class="small" data-i18n="haInfo">9 boutons + 3 capteurs + présence + l'état nRF sont publiés en auto-découverte HA.</p>
   </div>
 
   <div class="card" id="pinsCard">
-    <h2>Broches / Câblage</h2>
-    <p class="small">GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.</p>
+    <h2 data-i18n="pins">Broches / Câblage</h2>
+    <p class="small" data-i18n="pinsInfo">GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.</p>
     <div class="pins-grid">
       <label>BME280 SDA<input id="p_i2c_sda" inputmode="numeric"></label>
       <label>BME280 SCL<input id="p_i2c_scl" inputmode="numeric"></label>
@@ -280,35 +289,117 @@
       <label>LD2410 TX<input id="p_ld_tx" inputmode="numeric"></label>
       <label>LD2410 RX<input id="p_ld_rx" inputmode="numeric"></label>
     </div>
-    <button class="ui" onclick="savePins()">Enregistrer les broches</button>
-    <button class="ui" onclick="reboot()">Redémarrer pour appliquer</button>
+    <button class="ui" data-i18n="savePins" onclick="savePins()">Enregistrer les broches</button>
+    <button class="ui" data-i18n="reboot" onclick="reboot()">Redémarrer pour appliquer</button>
     <p class="small" id="pinsMsg"></p>
   </div>
 
   <div class="card" id="autoCard">
-    <h2>Automatisation (présence)</h2>
-    <p class="small">Capteur LD2410 — présence : <b id="presLive">—</b> <span id="presSecs"></span></p>
+    <h2 data-i18n="auto">Automatisation (présence)</h2>
+    <p class="small"><span data-i18n="presLabel">Capteur LD2410 — présence :</span> <b id="presLive">—</b> <span id="presSecs"></span></p>
     <div id="ruleList"></div>
-    <button class="ui" onclick="addRule()">+ Ajouter une règle</button>
-    <button class="ui" onclick="saveRules()">Enregistrer les règles</button>
-    <p class="small">« Présence/Absence maintenue ≥ N min → mettre le climatiseur dans l'état choisi ».
-      L'action vise un <b>état</b> (idempotent) au lieu d'appuyer une touche : pas de cooldown,
-      la règle ne se déclenche qu'une fois par épisode et ne « retoggle » jamais. La présence est
-      anti-rebond (~10 s) pour ignorer les pertes brèves du capteur.</p>
+    <button class="ui" data-i18n="addRule" onclick="addRule()">+ Ajouter une règle</button>
+    <button class="ui" data-i18n="saveRules" onclick="saveRules()">Enregistrer les règles</button>
+    <p class="small" data-i18n="rulesHelp">« Présence/Absence maintenue ≥ N min → mettre le climatiseur
+      dans l'état choisi ». L'action vise un état (idempotent) au lieu d'appuyer une touche : pas de
+      cooldown, la règle ne se déclenche qu'une fois par épisode et ne « retoggle » jamais. La
+      présence est anti-rebond (~10 s) pour ignorer les pertes brèves du capteur.</p>
     <p class="small" id="rulesMsg"></p>
   </div>
 
   <div class="card" id="pairCard">
-    <h2>Appariement</h2>
-    <button class="ui" onclick="pairing(false)">Apparier (mode appairage)</button>
-    <button class="ui" onclick="pairing(true)">Désapparier</button>
-    <p class="small">L'émulateur s'apparie comme une vraie télécommande. <b>Désapparier</b> efface
-      le lien et le repasse en mode appairage ; mettez ensuite la clim en mode appairage
-      (MODE ~10 s). <b>Apparier</b> relance la diffusion si besoin.</p>
+    <h2 data-i18n="pair">Appariement</h2>
+    <button class="ui" data-i18n="pairBtn" onclick="pairing(false)">Apparier (mode appairage)</button>
+    <button class="ui" data-i18n="unpairBtn" onclick="pairing(true)">Désapparier</button>
+    <p class="small" data-i18n="pairHelp">L'émulateur s'apparie comme une vraie télécommande.
+      Désapparier efface le lien et le repasse en mode appairage ; mettez ensuite la clim en mode
+      appairage (MODE ~10 s). Apparier relance la diffusion si besoin.</p>
   </div>
 </main>
 <script>
 const $ = s => document.querySelector(s);
+
+// ---- i18n (FR/EN/DE), auto from browser, override via the header selector ----
+const I18N = {
+  remote:{fr:'Télécommande',en:'Remote',de:'Fernbedienung'},
+  sync30:{fr:'⟳ Synchroniser (30 s)',en:'⟳ Sync (30 s)',de:'⟳ Synchronisieren (30 s)'},
+  syncBanA:{fr:'Mode synchro',en:'Sync mode',de:'Sync-Modus'},
+  syncBanB:{fr:"appuyez sur les touches pour reproduire l'état affiché par le climatiseur. Aucun signal n'est envoyé.",
+            en:'press the keys to reproduce what the AC shows. Nothing is sent.',
+            de:'Tasten drücken, um den Zustand der Klimaanlage nachzubilden. Es wird nichts gesendet.'},
+  syncHelp:{fr:"L'écran reflète l'état modélisé du climatiseur (boucle ouverte). En cas de dérive, lancez « Synchroniser » et reproduisez sur les touches l'état réellement affiché par le climatiseur — rien n'est envoyé pendant ces 30 s.",
+            en:'The screen reflects the modeled AC state (open loop). If it drifts, start “Sync” and reproduce on the keys what the AC actually shows — nothing is sent during those 30 s.',
+            de:'Der Bildschirm zeigt den modellierten Zustand (offener Regelkreis). Bei Abweichung „Synchronisieren“ starten und den tatsächlich angezeigten Zustand über die Tasten nachbilden — in diesen 30 s wird nichts gesendet.'},
+  scan:{fr:'Scanner les réseaux',en:'Scan networks',de:'Netzwerke suchen'},
+  connect:{fr:'Se connecter',en:'Connect',de:'Verbinden'},
+  haSave:{fr:'Enregistrer & connecter',en:'Save & connect',de:'Speichern & verbinden'},
+  haInfo:{fr:"9 boutons + 3 capteurs + présence + l'état nRF sont publiés en auto-découverte HA.",
+          en:'9 buttons + 3 sensors + presence + nRF status are published via HA auto-discovery.',
+          de:'9 Tasten + 3 Sensoren + Präsenz + nRF-Status werden per HA-Autodiscovery veröffentlicht.'},
+  pins:{fr:'Broches / Câblage',en:'Pins / Wiring',de:'Pins / Verkabelung'},
+  pinsInfo:{fr:'GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.',
+            en:'GPIO for each peripheral. Changes apply on reboot.',
+            de:'GPIO für jedes Peripheriegerät. Änderungen werden beim Neustart übernommen.'},
+  savePins:{fr:'Enregistrer les broches',en:'Save pins',de:'Pins speichern'},
+  reboot:{fr:'Redémarrer pour appliquer',en:'Reboot to apply',de:'Neustart zum Übernehmen'},
+  auto:{fr:'Automatisation (présence)',en:'Automation (presence)',de:'Automatisierung (Präsenz)'},
+  presLabel:{fr:'Capteur LD2410 — présence :',en:'LD2410 sensor — presence:',de:'LD2410-Sensor — Präsenz:'},
+  addRule:{fr:'+ Ajouter une règle',en:'+ Add a rule',de:'+ Regel hinzufügen'},
+  saveRules:{fr:'Enregistrer les règles',en:'Save rules',de:'Regeln speichern'},
+  rulesHelp:{fr:"« Présence/Absence maintenue ≥ N min → mettre le climatiseur dans l'état choisi ». L'action vise un état (idempotent) au lieu d'appuyer une touche : pas de cooldown, la règle ne se déclenche qu'une fois par épisode et ne « retoggle » jamais. La présence est anti-rebond (~10 s) pour ignorer les pertes brèves du capteur.",
+             en:'“Presence/Absence held ≥ N min → set the AC to the chosen state.” The action targets a state (idempotent) instead of pressing a key: no cooldown, the rule fires once per episode and never re-toggles. Presence is debounced (~10 s) to ignore brief sensor dropouts.',
+             de:'„Präsenz/Abwesenheit ≥ N min → Klimaanlage in den gewählten Zustand setzen.“ Die Aktion zielt auf einen Zustand (idempotent) statt eine Taste zu drücken: kein Cooldown, die Regel löst einmal pro Episode aus und schaltet nie zurück. Präsenz ist entprellt (~10 s), um kurze Sensorausfälle zu ignorieren.'},
+  pair:{fr:'Appariement',en:'Pairing',de:'Kopplung'},
+  pairBtn:{fr:'Apparier (mode appairage)',en:'Pair (pairing mode)',de:'Koppeln (Kopplungsmodus)'},
+  unpairBtn:{fr:'Désapparier',en:'Unpair',de:'Entkoppeln'},
+  pairHelp:{fr:"L'émulateur s'apparie comme une vraie télécommande. Désapparier efface le lien et le repasse en mode appairage ; mettez ensuite la clim en mode appairage (MODE ~10 s). Apparier relance la diffusion si besoin.",
+            en:'The emulator pairs like a real remote. Unpair clears the bond and re-enters pairing mode; then put the AC into pairing mode (MODE ~10 s). Pair restarts advertising if needed.',
+            de:'Der Emulator koppelt wie eine echte Fernbedienung. Entkoppeln löscht die Bindung und geht in den Kopplungsmodus; dann die Klimaanlage in den Kopplungsmodus versetzen (MODE ~10 s). Koppeln startet bei Bedarf das Senden neu.'},
+  ph_pass:{fr:'Mot de passe',en:'Password',de:'Passwort'},
+  ph_broker:{fr:'Broker (ex: 192.168.0.x)',en:'Broker (e.g. 192.168.0.x)',de:'Broker (z. B. 192.168.0.x)'},
+  ph_user:{fr:'Utilisateur (optionnel)',en:'Username (optional)',de:'Benutzer (optional)'},
+  ph_passopt:{fr:'Mot de passe (optionnel)',en:'Password (optional)',de:'Passwort (optional)'},
+  // dynamic
+  occ:{fr:'occupé',en:'occupied',de:'belegt'},
+  vac:{fr:'vide',en:'vacant',de:'leer'},
+  sensor:{fr:'capteur',en:'sensor',de:'Sensor'},
+  sensorAbs:{fr:'capteur absent',en:'sensor absent',de:'Sensor fehlt'},
+  wifiConn:{fr:'Connecté à',en:'Connected to',de:'Verbunden mit'},
+  wifiDiscA:{fr:'Non connecté — point d’accès',en:'Not connected — access point',de:'Nicht verbunden — Access Point'},
+  wifiDiscB:{fr:'actif pour la configuration.',en:'active for setup.',de:'aktiv für die Einrichtung.'},
+  mqttConn:{fr:'Connecté ✓',en:'Connected ✓',de:'Verbunden ✓'},
+  mqttDisc:{fr:'Déconnecté',en:'Disconnected',de:'Getrennt'},
+  mqttNone:{fr:'Non configuré',en:'Not configured',de:'Nicht konfiguriert'},
+  scanning:{fr:'scan…',en:'scanning…',de:'Suche…'},
+  noNet:{fr:'aucun réseau',en:'no network',de:'kein Netzwerk'},
+  scanErr:{fr:'erreur de scan',en:'scan error',de:'Scan-Fehler'},
+  ssidReq:{fr:'SSID requis',en:'SSID required',de:'SSID erforderlich'},
+  pinsSaved:{fr:'Enregistré — redémarrez pour appliquer.',en:'Saved — reboot to apply.',de:'Gespeichert — Neustart zum Übernehmen.'},
+  pinsBad:{fr:'GPIO invalide : rien enregistré.',en:'Invalid GPIO: nothing saved.',de:'Ungültiger GPIO: nichts gespeichert.'},
+  saveErr:{fr:'Erreur d’enregistrement.',en:'Save error.',de:'Speicherfehler.'},
+  rebootConfirm:{fr:'Redémarrer le pont maintenant ?',en:'Reboot the bridge now?',de:'Bridge jetzt neu starten?'},
+  rebooting:{fr:'Redémarrage…',en:'Rebooting…',de:'Neustart…'},
+  condPres:{fr:'Présence',en:'Presence',de:'Präsenz'},
+  condAbs:{fr:'Absence',en:'Absence',de:'Abwesenheit'},
+  tgtOff:{fr:'Éteindre',en:'Turn off',de:'Ausschalten'},
+  tgtCool:{fr:'Froid',en:'Cool',de:'Kühlen'},
+  tgtDry:{fr:'Déshu.',en:'Dry',de:'Entf.'},
+  tgtFan:{fr:'Ventil.',en:'Fan',de:'Lüfter'},
+  noRule:{fr:'Aucune règle.',en:'No rules.',de:'Keine Regeln.'},
+  maxRules:{fr:'Maximum 6 règles.',en:'Maximum 6 rules.',de:'Maximal 6 Regeln.'},
+  rulesSaved:{fr:'Règles enregistrées.',en:'Rules saved.',de:'Regeln gespeichert.'},
+  rulesBad:{fr:'Erreur : cible invalide.',en:'Error: invalid target.',de:'Fehler: ungültiges Ziel.'},
+};
+const SUPPORTED = ['fr','en','de'];
+let L = localStorage.getItem('lang') || (navigator.language||'en').slice(0,2).toLowerCase();
+if (!SUPPORTED.includes(L)) L = 'en';
+document.documentElement.lang = L;
+const t = k => (I18N[k] && (I18N[k][L] || I18N[k].en)) || k;
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(e => e.placeholder = t(e.dataset.i18nPh));
+}
+
 async function press(b, el){
   el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'), 200);
   try { await fetch('/api/press', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'btn='+b}); } catch(e){}
@@ -355,9 +446,10 @@ async function refresh(){
     $('#dot').className = s.state;
     $('#st').textContent = s.state + (s.ip ? ' · '+s.ip : '');
 
-    // screen — sensors
+    // screen — barometer (temp / humidity / pressure)
     $('#scrT').textContent = s.bme ? s.temp : '--.-';
     $('#scrH').textContent = s.bme ? Math.round(s.hum) : '--';
+    $('#scrP').textContent = s.bme ? Math.round(s.hpa) : '----';
 
     // screen — status dots
     setDot('dWifi', s.state==='connected' ? 'ok' : (s.state==='connecting' ? 'warn' : ''));
@@ -367,18 +459,18 @@ async function refresh(){
     $('#scrNrf').textContent = 'nRF '+nrf;
     // LD2410 presence on the remote status: occupied / vacant / sensor absent
     setDot('dPres', s.ld ? (s.presence ? 'ok' : '') : 'warn');
-    $('#scrPres').textContent = s.ld ? (s.presence ? 'occupé' : 'vide') : 'capteur';
+    $('#scrPres').textContent = s.ld ? (s.presence ? t('occ') : t('vac')) : t('sensor');
 
     // config cards
     $('#wifiState').textContent = s.state==='connected'
-      ? ('Connecté à '+s.ssid+' ('+s.ip+')')
-      : ('Non connecté — point d’accès "'+s.ap+'" actif pour la configuration.');
+      ? (t('wifiConn')+' '+s.ssid+' ('+s.ip+')')
+      : (t('wifiDiscA')+' "'+s.ap+'" '+t('wifiDiscB'));
     $('#mqttState').textContent = s.mqtt_host
-      ? ((s.mqtt?'Connecté ✓':'Déconnecté')+' — '+s.mqtt_host) : 'Non configuré';
+      ? ((s.mqtt?t('mqttConn'):t('mqttDisc'))+' — '+s.mqtt_host) : t('mqttNone');
 
     // presence (automation card)
     if ($('#presLive')) {
-      $('#presLive').textContent = s.ld ? (s.presence ? 'occupé' : 'vide') : 'capteur absent';
+      $('#presLive').textContent = s.ld ? (s.presence ? t('occ') : t('vac')) : t('sensorAbs');
       $('#presSecs').textContent = (s.ld && s.presence) ? '· '+s.presence_s+' s' : '';
     }
 
@@ -394,15 +486,15 @@ async function refresh(){
       $('#acFanInd').innerHTML = a.on ? fanBars(a.fan) : '';
       const ind = (id,on)=>$('#'+id).classList.toggle('on',!!on);
       ind('indEco', a.on&&a.eco); ind('indSilent', a.on&&a.silent); ind('indSwing', a.on&&a.swing);
-      const t = $('#indTimer');
-      if (t) { const lit = a.timer !== 'off';
-        t.classList.toggle('on', lit);
-        t.textContent = lit ? '⏱ '+a.timer_h.toFixed(1)+'h'+(a.timer==='edit'?' ✎':'') : '⏱'; }
+      const tEl = $('#indTimer');
+      if (tEl) { const lit = a.timer !== 'off';
+        tEl.classList.toggle('on', lit);
+        tEl.innerHTML = '<span class="tclock">⏱</span>' + (lit ? ' '+a.timer_h.toFixed(1)+'h'+(a.timer==='edit'?' ✎':'') : ''); }
     }
   } catch(e){}
 }
 async function scan(){
-  const ul = $('#aps'); ul.innerHTML = '<li>scan…</li>';
+  const ul = $('#aps'); ul.innerHTML = '<li>'+t('scanning')+'</li>';
   try {
     const aps = await (await fetch('/api/scan')).json();
     ul.innerHTML = '';
@@ -412,12 +504,12 @@ async function scan(){
       li.onclick = () => { $('#ssid').value = a.ssid; $('#pass').focus(); };
       ul.appendChild(li);
     });
-    if(!aps.length) ul.innerHTML = '<li>aucun réseau</li>';
-  } catch(e){ ul.innerHTML = '<li>erreur de scan</li>'; }
+    if(!aps.length) ul.innerHTML = '<li>'+t('noNet')+'</li>';
+  } catch(e){ ul.innerHTML = '<li>'+t('scanErr')+'</li>'; }
 }
 async function connect(){
   const ssid = $('#ssid').value, pass = $('#pass').value;
-  if(!ssid){ alert('SSID requis'); return; }
+  if(!ssid){ alert(t('ssidReq')); return; }
   await fetch('/api/connect', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
               body:'ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent(pass)});
   setTimeout(refresh, 1500);
@@ -441,22 +533,21 @@ async function savePins(){
   try {
     const r = await (await fetch('/api/pins', {method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'}, body})).json();
-    $('#pinsMsg').textContent = r.ok ? 'Enregistré — redémarrez pour appliquer.'
-                                     : 'GPIO invalide : rien enregistré.';
-  } catch(e){ $('#pinsMsg').textContent = 'Erreur d’enregistrement.'; }
+    $('#pinsMsg').textContent = r.ok ? t('pinsSaved') : t('pinsBad');
+  } catch(e){ $('#pinsMsg').textContent = t('saveErr'); }
 }
 async function reboot(){
-  if(!confirm('Redémarrer le pont maintenant ?')) return;
-  try { await fetch('/api/reboot', {method:'POST'}); $('#pinsMsg').textContent = 'Redémarrage…'; } catch(e){}
+  if(!confirm(t('rebootConfirm'))) return;
+  try { await fetch('/api/reboot', {method:'POST'}); $('#pinsMsg').textContent = t('rebooting'); } catch(e){}
 }
 
 // ---- presence automation ----
-const TARGETS = [['off','Éteindre'],['cool','Froid'],['dry','Déshu.'],['fan_only','Ventil.']];
+const TARGETS = [['off','tgtOff'],['cool','tgtCool'],['dry','tgtDry'],['fan_only','tgtFan']];
 let RULES = [];
 function ruleRow(r, idx){
   const cond = ['presence','absence'].map(c =>
-    `<option value="${c}"${r.cond===c?' selected':''}>${c==='presence'?'Présence':'Absence'}</option>`).join('');
-  const tgts = TARGETS.map(([v,l]) => `<option value="${v}"${r.target===v?' selected':''}>${l}</option>`).join('');
+    `<option value="${c}"${r.cond===c?' selected':''}>${c==='presence'?t('condPres'):t('condAbs')}</option>`).join('');
+  const tgts = TARGETS.map(([v,l]) => `<option value="${v}"${r.target===v?' selected':''}>${t(l)}</option>`).join('');
   return `<div class="rule">
     <label><input type="checkbox" class="r_en"${r.enabled?' checked':''}> on</label>
     <select class="r_cond">${cond}</select>
@@ -467,10 +558,10 @@ function ruleRow(r, idx){
 }
 function renderRules(){
   $('#ruleList').innerHTML = RULES.length ? RULES.map(ruleRow).join('')
-                                          : '<p class="small">Aucune règle.</p>';
+                                          : '<p class="small">'+t('noRule')+'</p>';
 }
 function addRule(){
-  if(RULES.length>=6){ $('#rulesMsg').textContent='Maximum 6 règles.'; return; }
+  if(RULES.length>=6){ $('#rulesMsg').textContent=t('maxRules'); return; }
   RULES.push({enabled:true,cond:'presence',duration_s:300,target:'cool'});
   renderRules();
 }
@@ -498,11 +589,18 @@ async function saveRules(){
   try {
     const r = await (await fetch('/api/rules', {method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:parts.join('&')})).json();
-    $('#rulesMsg').textContent = r.ok ? 'Règles enregistrées.' : 'Erreur : touche invalide.';
+    $('#rulesMsg').textContent = r.ok ? t('rulesSaved') : t('rulesBad');
     loadRules();
-  } catch(e){ $('#rulesMsg').textContent = 'Erreur d’enregistrement.'; }
+  } catch(e){ $('#rulesMsg').textContent = t('saveErr'); }
 }
 
+// language selector: set current, switch + retranslate on change
+const langSel = $('#langSel');
+langSel.value = L;
+langSel.onchange = () => { L = langSel.value; localStorage.setItem('lang', L);
+  document.documentElement.lang = L; applyI18n(); renderRules(); refresh(); };
+
+applyI18n();
 loadPins();
 loadRules();
 refresh(); setInterval(refresh, 3000);
