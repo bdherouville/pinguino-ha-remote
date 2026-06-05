@@ -598,7 +598,9 @@ async function saveRules(){
 const langSel = $('#langSel');
 langSel.value = L;
 langSel.onchange = () => { L = langSel.value; localStorage.setItem('lang', L);
-  document.documentElement.lang = L; applyI18n(); renderRules(); refresh(); };
+  document.documentElement.lang = L; applyI18n();
+  if (document.querySelector('#ruleList .rule')) RULES = collectRules();  // keep unsaved edits
+  renderRules(); refresh(); };
 
 applyI18n();
 loadPins();
