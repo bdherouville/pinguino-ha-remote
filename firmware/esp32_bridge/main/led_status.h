@@ -1,6 +1,6 @@
 #pragma once
 
-// Status shown on the ESP32-S3 super-mini RGB LED (WS2812 on GPIO48).
+// Optional RGB status LED; board_config.h may disable it with STATUS_LED_GPIO=-1.
 typedef enum {
     LED_BOOT,            // white dim  — booting
     LED_AP,              // blue pulse — provisioning AP up, waiting for Wi-Fi config

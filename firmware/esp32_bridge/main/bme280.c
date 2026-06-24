@@ -1,15 +1,148 @@
 #include "bme280.h"
+#include "bridge_state.h"
 #include "uart_link.h"
 #include "mqtt_ha.h"
 #include "pins.h"
+#include "board_config.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/i2c_master.h"
+#include "esp_timer.h"
 #include "esp_log.h"
 
 #define BME_HZ    100000
 #define BME_PERIOD_S 30      // how often to read + forward
+#define BME_STALE_MS 120000ULL
+
+static uint64_t s_last_update_ms;
+
+#ifdef CONFIG_PINGUINO_FIRMWARE_TOUCHSCREEN
+
+#include <bme680.h>
+#include <i2cdev.h>
+
+static const char *TAG = "bme680";
+
+static bme680_t s_sensor;
+static bool s_present;
+static float s_t = 0, s_h = 0, s_p = 0, s_gas = 0;
+static const char *s_air_quality = "Unknown";
+static float s_gas_baseline;
+
+static const char *air_quality_from_gas(float gas_ohm)
+{
+    if (gas_ohm <= 0) return "Unknown";
+    if (s_gas_baseline <= 0) {
+        s_gas_baseline = gas_ohm;
+        return "Unknown";
+    }
+
+    float ratio = gas_ohm / s_gas_baseline;
+    s_gas_baseline = (s_gas_baseline * 0.95f) + (gas_ohm * 0.05f);
+    if (ratio >= 0.8f) return "Good";
+    if (ratio >= 0.5f) return "Average";
+    return "Poor";
+}
+
+static bool read_once(void)
+{
+    bme680_values_float_t v = {0};
+    if (bme680_measure_float(&s_sensor, &v) != ESP_OK) return false;
+    if (v.temperature <= -300.0f || v.pressure <= 0.0f || v.humidity <= 0.0f) return false;
+
+    s_t = v.temperature;
+    s_h = v.humidity;
+    s_p = v.pressure;
+    s_gas = v.gas_resistance;
+    s_air_quality = air_quality_from_gas(s_gas);
+    s_last_update_ms = esp_timer_get_time() / 1000ULL;
+    bme680_set_ambient_temperature(&s_sensor, (int16_t)s_t);
+    return true;
+}
+
+static void task(void *arg)
+{
+    for (;;) {
+        if (read_once()) {
+            ESP_LOGI(TAG, "T=%.2f C  H=%.1f %%  P=%.1f hPa  G=%.0f Ohm (%s)",
+                     s_t, s_h, s_p, s_gas, s_air_quality);
+            bridge_state_update_sensor(true, "BME680", s_t, s_h, s_p,
+                                       (uint32_t)s_gas, s_air_quality, s_last_update_ms);
+            uart_link_env(s_t, s_h, s_p);        // legacy nRF Env Sensing payload
+            mqtt_ha_publish_env_ext(s_t, s_h, s_p, true, s_gas, s_air_quality);
+        }
+        vTaskDelay(pdMS_TO_TICKS(BME_PERIOD_S * 1000));
+    }
+}
+
+void bme280_init(void)
+{
+    const device_pins_t *pn = pins_get();
+    ESP_ERROR_CHECK_WITHOUT_ABORT(i2cdev_init());
+
+    for (uint8_t addr = BME680_I2C_ADDR_0; addr <= BME680_I2C_ADDR_1; addr++) {
+        memset(&s_sensor, 0, sizeof(s_sensor));
+        if (bme680_init_desc(&s_sensor, addr, BME_I2C_PORT,
+                             (gpio_num_t)pn->i2c_sda, (gpio_num_t)pn->i2c_scl) != ESP_OK) {
+            continue;
+        }
+        s_sensor.i2c_dev.cfg.master.clk_speed = BME680_I2C_FREQ_HZ;
+        if (bme680_init_sensor(&s_sensor) == ESP_OK) {
+            ESP_LOGI(TAG, "BME680 found at 0x%02X (SDA=%d SCL=%d)", addr, pn->i2c_sda, pn->i2c_scl);
+            s_present = true;
+            break;
+        }
+        bme680_free_desc(&s_sensor);
+    }
+
+    if (!s_present) {
+        ESP_LOGW(TAG, "no BME680 on the bus (SDA=%d SCL=%d)", pn->i2c_sda, pn->i2c_scl);
+        bridge_state_update_sensor(false, "BME680", 0, 0, 0, 0, "Unknown", 0);
+        return;
+    }
+
+    bme680_set_oversampling_rates(&s_sensor, BME680_OSR_2X, BME680_OSR_2X, BME680_OSR_2X);
+    bme680_set_filter_size(&s_sensor, BME680_IIR_SIZE_3);
+    bme680_set_heater_profile(&s_sensor, 0, 320, 150);
+    bme680_use_heater_profile(&s_sensor, 0);
+    xTaskCreate(task, "bme680", 4096, NULL, 4, NULL);
+}
+
+bool bme280_present(void) { return s_present; }
+bool bme280_get(float *t, float *h, float *p)
+{
+    if (!s_present || !s_last_update_ms) return false;
+    uint64_t now_ms = esp_timer_get_time() / 1000ULL;
+    if (now_ms - s_last_update_ms > BME_STALE_MS) return false;
+    if (t) *t = s_t;
+    if (h) *h = s_h;
+    if (p) *p = s_p;
+    return true;
+}
+
+bool bme280_get_sample(env_sensor_sample_t *sample)
+{
+    if (!sample) return false;
+    *sample = (env_sensor_sample_t) {
+        .available = s_present && s_last_update_ms &&
+                     ((esp_timer_get_time() / 1000ULL) - s_last_update_ms <= BME_STALE_MS),
+        .type = "BME680",
+        .temperature_c = s_t,
+        .humidity_percent = s_h,
+        .pressure_hpa = s_p,
+        .gas_valid = s_present && s_last_update_ms && s_gas > 0,
+        .gas_resistance_ohm = s_gas,
+        .air_quality = s_air_quality,
+        .last_update_ms = s_last_update_ms,
+    };
+    return sample->available;
+}
+
+const char *bme280_sensor_type(void) { return "BME680"; }
+
+#else
+
+#include "driver/i2c_master.h"
 
 static const char *TAG = "bme280";
 
@@ -99,7 +232,9 @@ static void task(void *arg)
 {
     for (;;) {
         if (read_once()) {
+            s_last_update_ms = esp_timer_get_time() / 1000ULL;
             ESP_LOGI(TAG, "T=%.2f C  H=%.1f %%  P=%.1f hPa", s_t, s_h, s_p);
+            bridge_state_update_sensor(true, "BME280", s_t, s_h, s_p, 0, "Unknown", s_last_update_ms);
             uart_link_env(s_t, s_h, s_p);        // -> nRF emulator Env Sensing
             mqtt_ha_publish_env(s_t, s_h, s_p);  // -> Home Assistant sensors
         }
@@ -133,7 +268,11 @@ void bme280_init(void)
         }
         i2c_master_bus_rm_device(s_dev); s_dev = NULL;
     }
-    if (!s_present) { ESP_LOGW(TAG, "no BME280 on the bus (SDA=%d SCL=%d)", pn->i2c_sda, pn->i2c_scl); return; }
+    if (!s_present) {
+        ESP_LOGW(TAG, "no BME280 on the bus (SDA=%d SCL=%d)", pn->i2c_sda, pn->i2c_scl);
+        bridge_state_update_sensor(false, "BME280", 0, 0, 0, 0, "Unknown", 0);
+        return;
+    }
 
     read_calib();
     wr(0xF5, 0x00);   // config: filter off (sampling mode is FORCED, set per read)
@@ -143,9 +282,33 @@ void bme280_init(void)
 bool bme280_present(void) { return s_present; }
 bool bme280_get(float *t, float *h, float *p)
 {
-    if (!s_present) return false;
+    if (!s_present || !s_last_update_ms) return false;
+    uint64_t now_ms = esp_timer_get_time() / 1000ULL;
+    if (now_ms - s_last_update_ms > BME_STALE_MS) return false;
     if (t) *t = s_t;
     if (h) *h = s_h;
     if (p) *p = s_p;
     return true;
 }
+
+bool bme280_get_sample(env_sensor_sample_t *sample)
+{
+    if (!sample) return false;
+    *sample = (env_sensor_sample_t) {
+        .available = s_present && s_last_update_ms &&
+                     ((esp_timer_get_time() / 1000ULL) - s_last_update_ms <= BME_STALE_MS),
+        .type = "BME280",
+        .temperature_c = s_t,
+        .humidity_percent = s_h,
+        .pressure_hpa = s_p,
+        .gas_valid = false,
+        .gas_resistance_ohm = 0,
+        .air_quality = "Unknown",
+        .last_update_ms = s_last_update_ms,
+    };
+    return sample->available;
+}
+
+const char *bme280_sensor_type(void) { return "BME280"; }
+
+#endif

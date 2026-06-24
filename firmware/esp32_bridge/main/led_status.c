@@ -1,17 +1,15 @@
 #include "led_status.h"
+#include "board_config.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "led_strip.h"
 
-// NOTE: GPIO48 is a WS2812 RGB on the common ESP32-S3 super-mini revision. Some revisions
-// wire a plain LED there instead — then this drives nothing harmful but the colours won't
-// render. See docs/re/ESP32-S3-SuperMini-BOARD.md.
-#define LED_GPIO   48
-
 static const char *TAG = "led";
-static led_strip_handle_t s_strip;
 static volatile led_state_t s_state = LED_BOOT;
+
+#if STATUS_LED_GPIO >= 0
+static led_strip_handle_t s_strip;
 
 static void set_rgb(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -43,13 +41,18 @@ static void led_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS((s_state == LED_STA_CONNECTING || s_state == LED_ERROR) ? 150 : 400));
     }
 }
+#endif
 
 void led_status_set(led_state_t s) { s_state = s; }
 
 void led_status_init(void)
 {
+#if STATUS_LED_GPIO < 0
+    ESP_LOGI(TAG, "status LED disabled for board %s", BOARD_NAME);
+    return;
+#else
     led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_GPIO,
+        .strip_gpio_num = STATUS_LED_GPIO,
         .max_leds = 1,
         .led_model = LED_MODEL_WS2812,
         .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
@@ -67,4 +70,5 @@ void led_status_init(void)
         s_strip = NULL;
     }
     xTaskCreate(led_task, "led", 2048, NULL, 3, NULL);
+#endif
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flash the Ganymede Bridge (ESP32-S3)</title>
+  <title>Flash the Ganymede Bridge</title>
   <style>
     :root { color-scheme: light dark; }
     body { font: 16px/1.6 system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1.2rem; }
@@ -15,14 +15,20 @@
   </style>
 </head>
 <body>
-  <h1>Flash the ESP32-S3 bridge</h1>
+  <h1>Flash the Ganymede Bridge</h1>
   <p>This installs the <strong>Ganymede Bridge</strong> firmware (Wi-Fi / MQTT / Home Assistant
-  front-end) onto an ESP32-S3 board, straight from your browser — no toolchain needed.</p>
+  front-end) straight from your browser — no toolchain needed.</p>
+
+  <p>The installer automatically selects the right release image for the connected chip:</p>
+  <ul>
+    <li><strong>ESP32-S3</strong>: existing headless bridge firmware.</li>
+    <li><strong>ESP32</strong>: touchscreen bridge firmware.</li>
+  </ul>
 
   <ol>
     <li>Use <strong>Chrome</strong> or <strong>Edge</strong> on desktop (Web Serial).</li>
-    <li>Plug the ESP32-S3 into USB.</li>
-    <li>Click <em>Install</em> below and pick the <code>USB JTAG/serial</code> port.</li>
+    <li>Plug the ESP32-S3 headless board or plain ESP32 touchscreen board into USB.</li>
+    <li>Click <em>Install</em> below and pick the board serial port.</li>
   </ol>
 
   <div class="btn">
@@ -37,7 +43,8 @@
   boot — connect to it, open <code>http://192.168.4.1</code>, and set your Wi-Fi (and optional
   MQTT broker for Home Assistant).</p>
 
-  <p>The nRF52840 board is flashed separately (UF2 drag-and-drop). See the
+  <p>The nRF52840 board is flashed separately (UF2 drag-and-drop). The touchscreen image targets
+  the JC2432W328 plain ESP32 board with ST7789 display and CST820 touch configured. See the
   <a href="https://github.com/bdherouville/pinguino-ha-remote">project README</a> for the full
   step-by-step, including the one-time nRF bootloader upgrade.</p>
 

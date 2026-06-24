@@ -9,14 +9,40 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-esp32:
+  touchscreen-invariants:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build ESP32-S3 bridge (ESP-IDF v6.0.1)
+      - name: Test touchscreen firmware contracts
+        run: python3 tools/test_touchscreen_contracts.py
+      - name: Check touchscreen firmware invariants
+        run: python3 tools/check_touchscreen_firmware.py
+
+  build-esp32:
+    needs: touchscreen-invariants
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: headless
+            sdkconfig: sdkconfig.headless
+            defaults: sdkconfig.defaults;sdkconfig.defaults.headless
+            target: esp32s3
+          - flavor: touchscreen
+            sdkconfig: sdkconfig.touchscreen
+            defaults: sdkconfig.defaults;sdkconfig.defaults.touchscreen
+            target: esp32
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ESP32 bridge ${{ matrix.flavor }} (ESP-IDF v6.0.1)
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0.1
-          target: esp32s3
+          target: ${{ matrix.target }}
           path: firmware/esp32_bridge
-          command: idf.py build
+          command: >-
+            idf.py -B build-${{ matrix.flavor }}
+            -DSDKCONFIG=${{ matrix.sdkconfig }}
+            -DSDKCONFIG_DEFAULTS='${{ matrix.defaults }}'
+            build

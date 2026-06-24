@@ -13,8 +13,10 @@ wm_state_t  wifi_mgr_state(void);
 const char *wifi_mgr_state_str(void);
 const char *wifi_mgr_ip(void);       // "x.x.x.x" once connected, else ""
 const char *wifi_mgr_ssid(void);     // current/target SSID
+int         wifi_mgr_rssi(void);
 bool        wifi_mgr_has_creds(void);
 const char *wifi_mgr_ap_ssid(void);  // the provisioning AP name
+void        wifi_mgr_reset_provisioning(void);
 
 int  wifi_mgr_scan(wm_ap_t *out, int max);          // blocking scan; returns count
 bool wifi_mgr_connect(const char *ssid, const char *pass); // save creds + (re)connect STA

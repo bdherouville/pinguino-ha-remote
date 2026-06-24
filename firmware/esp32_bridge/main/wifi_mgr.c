@@ -1,5 +1,7 @@
 #include "wifi_mgr.h"
+#include "bridge_state.h"
 #include "led_status.h"
+#include "mqtt_ha.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +27,14 @@ static char s_ip[16]   = "";
 static char s_ssid[33] = "";
 static char s_pass[65] = "";
 static int  s_retry    = 0;
+static int  s_rssi     = 0;
+
+static int current_rssi(void)
+{
+    wifi_ap_record_t ap = {0};
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) return ap.rssi;
+    return 0;
+}
 
 static void set_state(wm_state_t st)
 {
@@ -36,6 +46,9 @@ static void set_state(wm_state_t st)
     case WM_STA_CONNECTED:  led_status_set(LED_STA_CONNECTED); break;
     case WM_STA_FAILED:     led_status_set(LED_STA_FAILED); break;
     }
+    bool connected = st == WM_STA_CONNECTED;
+    if (connected) s_rssi = current_rssi();
+    bridge_state_update_wifi(connected, s_ssid, s_ip, s_rssi);
 }
 
 // ---- NVS creds ----
@@ -109,6 +122,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         snprintf(s_ip, sizeof(s_ip), IPSTR, IP2STR(&e->ip_info.ip));
         s_retry = 0;
         set_state(WM_STA_CONNECTED);
+        mqtt_ha_publish_wifi_rssi(s_rssi);
         ESP_LOGI(TAG, "got IP %s", s_ip);
     }
 }
@@ -153,6 +167,7 @@ void wifi_mgr_init(void)
 wm_state_t wifi_mgr_state(void) { return s_state; }
 const char *wifi_mgr_ip(void)   { return s_ip; }
 const char *wifi_mgr_ssid(void) { return s_ssid; }
+int wifi_mgr_rssi(void)         { return s_state == WM_STA_CONNECTED ? current_rssi() : 0; }
 bool wifi_mgr_has_creds(void)   { return s_ssid[0] != 0; }
 const char *wifi_mgr_ap_ssid(void) { return AP_SSID; }
 
@@ -206,4 +221,18 @@ bool wifi_mgr_connect(const char *ssid, const char *pass)
     ESP_LOGI(TAG, "creds saved for '%s' — rebooting into STA", ssid);
     xTaskCreate(reboot_task, "reboot", 2048, NULL, 5, NULL);
     return true;
+}
+
+void wifi_mgr_reset_provisioning(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_erase_all(h);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    s_ssid[0] = 0;
+    s_pass[0] = 0;
+    ESP_LOGW(TAG, "Wi-Fi credentials cleared — rebooting into provisioning AP");
+    xTaskCreate(reboot_task, "reboot", 2048, NULL, 5, NULL);
 }

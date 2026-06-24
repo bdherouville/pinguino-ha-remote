@@ -1,0 +1,39 @@
+menu "Pinguino HA Remote"
+
+choice PINGUINO_FIRMWARE_FLAVOR
+    prompt "Firmware flavor"
+    default PINGUINO_FIRMWARE_HEADLESS
+    help
+        Select the bridge firmware flavor to build.
+
+config PINGUINO_FIRMWARE_HEADLESS
+    bool "Headless bridge"
+
+config PINGUINO_FIRMWARE_TOUCHSCREEN
+    bool "Touchscreen bridge"
+
+endchoice
+
+config PINGUINO_FIRMWARE_NAME
+    string
+    default "pinguino-ha-remote-touch" if PINGUINO_FIRMWARE_TOUCHSCREEN
+    default "pinguino-ha-remote-headless"
+
+config PINGUINO_TOUCHSCREEN_DISPLAY_DIAGNOSTIC
+    bool "Show raw LCD diagnostic before LVGL"
+    depends on PINGUINO_FIRMWARE_TOUCHSCREEN
+    default n
+    help
+        Draw raw ST7789 color bands and a checkerboard during display bring-up.
+        Leave disabled for normal firmware builds.
+
+config PINGUINO_TOUCHSCREEN_SERIAL_DIAGNOSTIC
+    bool "Log touchscreen UI diagnostics to serial"
+    depends on PINGUINO_FIRMWARE_TOUCHSCREEN
+    default y
+    help
+        Log touch transitions, tileview events, snap recovery and UI heartbeat
+        state to the serial console. Enable during hardware bring-up and freeze
+        debugging; disable for quiet production logs.
+
+endmenu

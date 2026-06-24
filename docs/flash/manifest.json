@@ -1,5 +1,5 @@
 {
-  "name": "Ganymede Bridge (ESP32-S3)",
+  "name": "Ganymede Bridge",
   "version": "latest",
   "new_install_prompt_erase": false,
   "builds": [
@@ -7,7 +7,16 @@
       "chipFamily": "ESP32-S3",
       "parts": [
         {
-          "path": "https://github.com/bdherouville/pinguino-ha-remote/releases/latest/download/ganymede-bridge-esp32s3.bin",
+          "path": "https://github.com/bdherouville/pinguino-ha-remote/releases/latest/download/ganymede-bridge-headless-esp32s3.bin",
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "https://github.com/bdherouville/pinguino-ha-remote/releases/latest/download/ganymede-bridge-touchscreen-esp32.bin",
           "offset": 0
         }
       ]

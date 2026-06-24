@@ -20,9 +20,9 @@
 // Effective nRF link state (rich token gated by hardware liveness).
 typedef enum {
     NRF_OFFLINE = 0,   // no heartbeat + no UART  -> emulator absent/dead
-    NRF_BOOT,          // alive, not advertising yet
-    NRF_ADVERTISING,   // in pairing mode, visible
-    NRF_CONNECTED,     // AC connected, not bonded yet
+    NRF_BOOT,          // alive, not advertising yet; reported as "booting"
+    NRF_ADVERTISING,   // in pairing mode, visible; reported as "pairing"
+    NRF_CONNECTED,     // AC connected, not bonded yet; reported as "busy"
     NRF_BONDED,        // bonded, HID not subscribed yet
     NRF_READY,         // bonded + HID subscribed -> can relay presses
     NRF_ERROR,         // emulator reported an error

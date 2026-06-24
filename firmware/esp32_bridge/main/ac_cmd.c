@@ -1,5 +1,7 @@
 #include "ac_cmd.h"
 #include "ac_state.h"
+#include "bridge_buttons.h"
+#include "command_queue.h"
 #include "uart_link.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -37,7 +39,8 @@ static void press(const char *b)
         if (!uart_link_will_model()) return;  // link dropped / not commandable — stop; do_* re-checks
         int64_t wait_us = (int64_t)UART_LINK_PRESS_GAP_MS * 1000 - uart_link_since_press_us();
         if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS((TickType_t)(wait_us / 1000) + 1));
-        if (uart_link_press(b)) return;       // relayed + folded into ac_state
+        bool sent = false;
+        if (bridge_press_button_wait(b, &sent) == ESP_OK && sent) return;
     }
 }
 
@@ -47,13 +50,13 @@ static void do_mode(ac_mode_t target, bool want_on)
 {
     if (!uart_link_will_model()) return;
     ac_state_t st; ac_state_get_copy(&st);
-    if (!want_on) { if (st.on) press("power"); return; }
-    if (!st.on) press("power");               // wake (resumes last mode)
+    if (!want_on) { if (st.on) press(BRIDGE_BUTTON_POWER); return; }
+    if (!st.on) press(BRIDGE_BUTTON_POWER);   // wake (resumes last mode)
     for (int i = 0; i < 3; i++) {
         if (!uart_link_will_model()) return;
         ac_state_get_copy(&st);
         if (st.mode == target) break;
-        press("mode");
+        press(BRIDGE_BUTTON_MODE);
     }
 }
 
@@ -64,7 +67,7 @@ static void do_temp(int target)
         ac_state_t st; ac_state_get_copy(&st);
         if (!st.on || st.mode != AC_MODE_COOL) break;   // setpoint is COOL-only
         if (st.temp_c == target) break;
-        press(st.temp_c < target ? "up" : "down");
+        press(st.temp_c < target ? BRIDGE_BUTTON_UP : BRIDGE_BUTTON_DOWN);
     }
 }
 
@@ -76,7 +79,7 @@ static void do_fan(ac_fan_t target)
         if (!st.on || st.mode == AC_MODE_DRY) break;             // not settable in dry
         if (target == AC_FAN_AUTO && st.mode != AC_MODE_COOL) break; // auto = cool only
         if (st.fan == target) break;
-        press("fan");
+        press(BRIDGE_BUTTON_FAN);
     }
 }
 
@@ -85,11 +88,11 @@ static void do_switch(const char *which, bool on)
     if (!uart_link_will_model()) return;
     ac_state_t st; ac_state_get_copy(&st);
     if (!st.on) return;
-    bool eco_sil = (!strcmp(which, "eco") || !strcmp(which, "silent"));
+    bool eco_sil = (!strcmp(which, BRIDGE_BUTTON_ECO) || !strcmp(which, BRIDGE_BUTTON_SILENT));
     if (eco_sil && st.mode != AC_MODE_COOL) return;             // COOL-only
     bool cur = !strcmp(which, "swing") ? st.swing
-             : !strcmp(which, "eco")   ? st.eco : st.silent;
-    if (cur != on) press(!strcmp(which, "swing") ? "flap" : which);
+             : !strcmp(which, BRIDGE_BUTTON_ECO)   ? st.eco : st.silent;
+    if (cur != on) press(!strcmp(which, "swing") ? BRIDGE_BUTTON_FLAP : which);
 }
 
 static void worker(void *arg)
