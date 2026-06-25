@@ -93,6 +93,27 @@ def check_ci_and_release_matrices() -> None:
         require_contains(release, f"flavor: {flavor}", f"release missing {flavor} matrix row")
         require_contains(release, f"target: {target}", f"release missing {target} target")
 
+    for workflow_name, workflow in (("CI", ci), ("release", release)):
+        require_contains(
+            workflow,
+            r"defaults: sdkconfig.defaults\;sdkconfig.defaults.headless",
+            f"{workflow_name} must escape headless SDKCONFIG_DEFAULTS separator",
+        )
+        require_contains(
+            workflow,
+            r"defaults: sdkconfig.defaults\;sdkconfig.defaults.touchscreen",
+            f"{workflow_name} must escape touchscreen SDKCONFIG_DEFAULTS separator",
+        )
+        require_contains(
+            workflow,
+            "-DSDKCONFIG_DEFAULTS=${{ matrix.defaults }}",
+            f"{workflow_name} must pass SDKCONFIG_DEFAULTS without nested shell quotes",
+        )
+        require(
+            "-DSDKCONFIG_DEFAULTS='${{ matrix.defaults }}'" not in workflow,
+            f"{workflow_name} must not use nested single quotes around SDKCONFIG_DEFAULTS",
+        )
+
     require_contains(release, "ganymede-bridge-headless-esp32s3.bin", "release missing headless image name")
     require_contains(release, "ganymede-bridge-touchscreen-esp32.bin", "release missing touchscreen image name")
     require_contains(release, "ganymede-bridge-esp32s3.bin", "release missing legacy headless image copy")

@@ -29,7 +29,7 @@ jobs:
         include:
           - flavor: headless
             sdkconfig: sdkconfig.headless
-            defaults: sdkconfig.defaults;sdkconfig.defaults.headless
+            defaults: sdkconfig.defaults\;sdkconfig.defaults.headless
             target: esp32s3
             chip: esp32s3
             bootloader_offset: '0x0'
@@ -37,7 +37,7 @@ jobs:
             image: ganymede-bridge-headless-esp32s3.bin
           - flavor: touchscreen
             sdkconfig: sdkconfig.touchscreen
-            defaults: sdkconfig.defaults;sdkconfig.defaults.touchscreen
+            defaults: sdkconfig.defaults\;sdkconfig.defaults.touchscreen
             target: esp32
             chip: esp32
             bootloader_offset: '0x1000'
@@ -56,7 +56,7 @@ jobs:
           command: >-
             idf.py -B build-${{ matrix.flavor }}
             -DSDKCONFIG=${{ matrix.sdkconfig }}
-            -DSDKCONFIG_DEFAULTS='${{ matrix.defaults }}'
+            -DSDKCONFIG_DEFAULTS=${{ matrix.defaults }}
             build &&
             esptool --chip ${{ matrix.chip }} merge-bin -o ${{ matrix.image }} -f raw
             --flash-mode dio --flash-freq ${{ matrix.flash_freq }} --flash-size 2MB

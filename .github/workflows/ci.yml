@@ -27,11 +27,11 @@ jobs:
         include:
           - flavor: headless
             sdkconfig: sdkconfig.headless
-            defaults: sdkconfig.defaults;sdkconfig.defaults.headless
+            defaults: sdkconfig.defaults\;sdkconfig.defaults.headless
             target: esp32s3
           - flavor: touchscreen
             sdkconfig: sdkconfig.touchscreen
-            defaults: sdkconfig.defaults;sdkconfig.defaults.touchscreen
+            defaults: sdkconfig.defaults\;sdkconfig.defaults.touchscreen
             target: esp32
     steps:
       - uses: actions/checkout@v4
@@ -44,5 +44,5 @@ jobs:
           command: >-
             idf.py -B build-${{ matrix.flavor }}
             -DSDKCONFIG=${{ matrix.sdkconfig }}
-            -DSDKCONFIG_DEFAULTS='${{ matrix.defaults }}'
+            -DSDKCONFIG_DEFAULTS=${{ matrix.defaults }}
             build

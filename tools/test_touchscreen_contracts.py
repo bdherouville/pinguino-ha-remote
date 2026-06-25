@@ -68,6 +68,10 @@ class FlavorReleaseContracts(unittest.TestCase):
             self.assertIn("target: esp32s3", workflow)
             self.assertIn("flavor: touchscreen", workflow)
             self.assertIn("target: esp32", workflow)
+            self.assertIn(r"defaults: sdkconfig.defaults\;sdkconfig.defaults.headless", workflow)
+            self.assertIn(r"defaults: sdkconfig.defaults\;sdkconfig.defaults.touchscreen", workflow)
+            self.assertIn("-DSDKCONFIG_DEFAULTS=${{ matrix.defaults }}", workflow)
+            self.assertNotIn("-DSDKCONFIG_DEFAULTS='${{ matrix.defaults }}'", workflow)
 
         self.assertIn("ganymede-bridge-headless-esp32s3.bin", release)
         self.assertIn("ganymede-bridge-touchscreen-esp32.bin", release)
