@@ -1,5 +1,6 @@
 # ---- Build output (regenerable) ----
 **/build/
+**/build-*/
 **/build_ncs/
 **/build_periph/
 .pio/
@@ -7,6 +8,8 @@ firmware/esp32_bridge/managed_components/
 
 # ---- ESP-IDF generated config (keep sdkconfig.defaults) ----
 sdkconfig
+sdkconfig.headless
+sdkconfig.touchscreen
 sdkconfig.old
 
 # ---- Python ----

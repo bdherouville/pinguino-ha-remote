@@ -53,6 +53,26 @@ single USB-C port via USB-Serial/JTAG.
   Cypress `ADV_IND`, and the AC never accepts an ESP32 emulator (both verified; a phone — a
   different radio — does both). So the ESP32 is **Wi-Fi-only** and the nRF owns the BLE.
 
+## ESP32 touchscreen bridge
+
+JC2432W328 plain ESP32 touchscreen development board. The connected board currently identifies
+as `ESP32-D0WD-V3` over a CH340-style USB-UART adapter, so the touchscreen firmware target is
+`esp32`, not `esp32s3`.
+
+- **Release image:** `ganymede-bridge-touchscreen-esp32.bin`, flash at offset `0x0`.
+- **Bridge UART (provisional):** `GPIO17` TX -> nRF RX, `GPIO16` RX <- nRF TX.
+- **nRF heartbeat:** disabled by default (`nrf_hb=-1`) until the actual board wiring is
+  confirmed; liveness comes from recognized `status <token>` UART messages.
+- **Display:** ST7789, native portrait `240x320`, SPI `MISO = GPIO12`, `MOSI = GPIO13`,
+  `SCLK = GPIO14`, `CS = GPIO15`, `DC = GPIO2`, reset tied high (`-1`), PWM backlight
+  `GPIO27`.
+- **Touch:** CST820, I2C address `0x15`, `SDA = GPIO33`, `SCL = GPIO32`, `RST = GPIO25`,
+  `INT = GPIO21`.
+- **BME680:** optional external sensor shares the CST820 I2C bus — `SDA = GPIO33`,
+  `SCL = GPIO32`, addr 0x76/0x77. It is expected to be absent until wired.
+- **LD2410 (provisional):** moved off the display backlight and touch reset pins:
+  `GPIO19` TX -> LD2410 RX, `GPIO18` RX <- LD2410 TX.
+
 ## Wiring summary
 
 ```

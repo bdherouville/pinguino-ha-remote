@@ -1,0 +1,867 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ganymede 320x240 Landscape UI Mockups</title>
+<style>
+  :root {
+    --canvas: #070907;
+    --screen: #0b0f0d;
+    --panel: #151a17;
+    --panel-2: #1f2722;
+    --raised: #26302a;
+    --line: #344039;
+    --line-soft: #222b26;
+    --ink: #f5faf7;
+    --text: #dce7e1;
+    --muted: #9aa89f;
+    --dim: #68746d;
+    --teal: #14b8a6;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --blue: #60a5fa;
+    --shadow: rgba(0, 0, 0, 0.42);
+    font-family: Inter, "Fira Sans", Arial, Helvetica, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--canvas);
+    color: var(--ink);
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 320px);
+    gap: 18px;
+    align-items: start;
+  }
+
+  .screen {
+    position: relative;
+    width: 320px;
+    height: 240px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(20, 184, 166, 0.05), transparent 46px),
+      var(--screen);
+    border: 1px solid #27312b;
+    box-shadow: 0 10px 28px var(--shadow);
+  }
+
+  .top {
+    position: absolute;
+    left: 6px;
+    top: 5px;
+    width: 308px;
+    height: 28px;
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    background: #101511;
+    display: grid;
+    grid-template-columns: 62px 72px 62px 1fr;
+    gap: 4px;
+    align-items: center;
+    padding: 3px 5px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .chip {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chip.ok { color: var(--green); }
+  .chip.warn { color: var(--amber); }
+  .chip.bad { color: var(--red); }
+
+  .dotmark {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 4px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    background: var(--dim);
+  }
+
+  .ok .dotmark { background: var(--green); }
+  .warn .dotmark { background: var(--amber); }
+  .bad .dotmark { background: var(--red); }
+
+  .content {
+    position: absolute;
+    left: 8px;
+    top: 38px;
+    width: 304px;
+    height: 153px;
+  }
+
+  .footer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 320px;
+    height: 44px;
+    border-top: 1px solid #1f2823;
+    background: #0a0d0b;
+  }
+
+  .home {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 54px;
+    height: 44px;
+    border: 1px solid #0f766e;
+    border-radius: 0 8px 0 0;
+    background: var(--teal);
+    color: #001b18;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .dots {
+    position: absolute;
+    left: 84px;
+    top: 16px;
+    display: flex;
+    gap: 7px;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #526057;
+  }
+
+  .dot.active { background: var(--teal); }
+
+  .page {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    width: 96px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 12px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .title {
+    margin: 0 0 5px;
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 19px;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+
+  .sub {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 13px;
+  }
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .btn {
+    border: 1px solid #3a453e;
+    border-radius: 8px;
+    background: var(--raised);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 14px;
+    text-align: center;
+  }
+
+  .btn.primary {
+    background: var(--teal);
+    border-color: #0f766e;
+    color: #001b18;
+  }
+
+  .btn.danger {
+    background: var(--red);
+    border-color: #b91c1c;
+    color: white;
+  }
+
+  .btn.warn {
+    background: #3a2a12;
+    border-color: #8a5a08;
+    color: #ffd98a;
+  }
+
+  .btn.dimmed {
+    opacity: 0.45;
+    color: #bac4bd;
+  }
+
+  .remote-shell {
+    height: 153px;
+    padding: 8px;
+    border-radius: 18px 18px 12px 12px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 26px),
+      radial-gradient(140px 36px at 64px 126px, rgba(96, 165, 250, 0.18), transparent 70%),
+      linear-gradient(180deg, #111728 0%, #070912 68%, #11142a 100%);
+    border-color: #3d4659;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -14px 24px rgba(96, 165, 250, 0.14);
+  }
+
+  .remote-shell::before {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 84px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.09);
+    filter: blur(8px);
+    pointer-events: none;
+  }
+
+  .remote-top-row {
+    position: absolute;
+    left: 55px;
+    top: 10px;
+    display: grid;
+    grid-template-columns: repeat(4, 44px);
+    gap: 9px;
+  }
+
+  .round-remote {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(230, 236, 246, 0.82);
+    background: rgba(6, 9, 18, 0.45);
+    color: #f7fbff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .round-remote img {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    filter: invert(1);
+    mix-blend-mode: screen;
+    opacity: 0.9;
+  }
+
+  .round-remote .sym {
+    display: block;
+    font-size: 24px;
+    line-height: 40px;
+    font-weight: 500;
+  }
+
+  .remote-bottom-row {
+    position: absolute;
+    left: 10px;
+    top: 62px;
+    display: grid;
+    grid-template-columns: 63px 72px 91px 44px;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .remote-pill {
+    height: 44px;
+    border-radius: 22px;
+    border: 1px solid rgba(230, 236, 246, 0.82);
+    background: rgba(6, 9, 18, 0.42);
+    color: #f7fbff;
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0;
+  }
+
+  .remote-pill img {
+    width: 22px;
+    height: 20px;
+    margin-right: 4px;
+    vertical-align: -5px;
+    filter: invert(1);
+    mix-blend-mode: screen;
+  }
+
+  .temp-pill {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: 44px;
+    overflow: hidden;
+    border: 1px solid rgba(230, 236, 246, 0.82);
+    border-radius: 22px;
+    background: rgba(6, 9, 18, 0.42);
+  }
+
+  .temp-half {
+    border: 0;
+    background: transparent;
+    color: #f7fbff;
+    font-size: 24px;
+    line-height: 40px;
+    font-weight: 700;
+  }
+
+  .temp-half + .temp-half {
+    border-left: 1px solid rgba(230, 236, 246, 0.3);
+  }
+
+  .remote-power {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(230, 236, 246, 0.9);
+    background: rgba(239, 68, 68, 0.2);
+    color: #fff;
+    font-size: 12px;
+    line-height: 40px;
+    font-weight: 850;
+  }
+
+  .remote-model {
+    position: absolute;
+    left: 12px;
+    top: 116px;
+    width: 280px;
+    height: 27px;
+    display: grid;
+    grid-template-columns: 54px 38px 35px 1fr 44px;
+    gap: 5px;
+    align-items: center;
+    padding: 4px 6px;
+    border: 1px solid rgba(230, 236, 246, 0.22);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.42);
+    color: #e7edf5;
+    font-family: "Fira Code", monospace;
+    font-size: 10px;
+    line-height: 12px;
+  }
+
+  .remote-model b {
+    color: #fff;
+    font-size: 14px;
+    line-height: 16px;
+  }
+
+  .toast {
+    position: absolute;
+    left: 60px;
+    top: 195px;
+    width: 166px;
+    height: 18px;
+    color: var(--amber);
+    font-size: 11px;
+    line-height: 18px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .last {
+    position: absolute;
+    right: 10px;
+    top: 195px;
+    width: 84px;
+    height: 18px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 18px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    height: 153px;
+  }
+
+  .tile {
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .big-action {
+    width: 100%;
+    height: 44px;
+    margin-top: 6px;
+    font-size: 14px;
+  }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .action-row .btn {
+    height: 38px;
+  }
+
+  .rows {
+    display: grid;
+    gap: 5px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    min-width: 0;
+    height: 20px;
+    padding: 3px 6px;
+    border: 1px solid var(--line-soft);
+    border-radius: 6px;
+    background: #101511;
+    color: var(--text);
+    font-size: 11px;
+    line-height: 13px;
+  }
+
+  .row b {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .row span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .metric {
+    min-height: 55px;
+    padding: 7px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .metric .k {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 12px;
+    white-space: nowrap;
+  }
+
+  .metric .v {
+    margin-top: 4px;
+    color: var(--ink);
+    font-size: 18px;
+    line-height: 20px;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .metric .m {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 9px;
+    line-height: 10px;
+    white-space: nowrap;
+  }
+
+  .net-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    height: 153px;
+  }
+
+  .field {
+    height: 22px;
+    margin-top: 3px;
+    padding: 4px 7px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #0d120f;
+    color: var(--text);
+    font-size: 11px;
+    line-height: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mini-row {
+    display: grid;
+    grid-template-columns: 1fr 44px;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .mini-row .btn {
+    height: 22px;
+    font-size: 10px;
+  }
+
+  .rule-list {
+    display: grid;
+    gap: 6px;
+  }
+
+  .rule {
+    height: 34px;
+    padding: 5px 7px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .rule-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    color: var(--text);
+    font-size: 11px;
+    line-height: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .rule-bottom {
+    margin-top: 1px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 12px;
+    white-space: nowrap;
+  }
+
+  .rule-actions {
+    position: absolute;
+    right: 8px;
+    top: 27px;
+    width: 94px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .rule-actions .btn {
+    height: 34px;
+  }
+
+  .pin-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+  }
+
+  .pin {
+    height: 22px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 8px;
+    line-height: 8px;
+  }
+
+  .pin b {
+    display: block;
+    margin-top: 1px;
+    color: var(--ink);
+    font-size: 10px;
+    line-height: 11px;
+  }
+
+  .slider {
+    height: 9px;
+    margin-top: 10px;
+    border-radius: 999px;
+    background: #2e3832;
+    overflow: hidden;
+  }
+
+  .slider span {
+    display: block;
+    width: 78%;
+    height: 100%;
+    background: var(--teal);
+  }
+
+  .sys-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .sys-actions .btn {
+    height: 34px;
+  }
+
+  @media (max-width: 1040px) {
+    .board { grid-template-columns: repeat(2, 320px); }
+  }
+</style>
+</head>
+<body>
+<div class="board">
+  <section class="screen">
+    <div class="top">
+      <div class="chip bad"><span class="dotmark"></span>nRF off</div>
+      <div class="chip warn"><span class="dotmark"></span>Wi-Fi AP</div>
+      <div class="chip warn"><span class="dotmark"></span>MQTT off</div>
+      <div class="chip">24.2C 48%</div>
+    </div>
+    <div class="content panel remote-shell">
+      <div class="remote-top-row">
+        <button class="round-remote dimmed" title="Flap"><img src="../../assets/photos/flap.svg" alt=""> </button>
+        <button class="round-remote dimmed" title="Silent"><img src="../../assets/photos/silent.svg" alt=""> </button>
+        <button class="round-remote dimmed" title="Fan"><img src="../../assets/photos/fan.svg" alt=""> </button>
+        <button class="round-remote dimmed" title="Timer"><span class="sym">T</span></button>
+      </div>
+      <div class="remote-bottom-row">
+        <button class="remote-pill dimmed"><img src="../../assets/photos/eco.svg" alt="">Eco</button>
+        <button class="remote-pill dimmed">MODE</button>
+        <div class="temp-pill dimmed">
+          <button class="temp-half">v</button>
+          <button class="temp-half">^</button>
+        </div>
+        <button class="remote-power dimmed">PWR</button>
+      </div>
+      <div class="remote-model">
+        <span>COOL</span>
+        <b>24</b>
+        <span>F2</span>
+        <span>ECO SIL SWG</span>
+        <span>Good</span>
+      </div>
+    </div>
+    <div class="toast">nRF offline - commands disabled</div>
+    <div class="last">last: none</div>
+    <div class="footer">
+      <button class="home">Home</button>
+      <div class="dots"><span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="page">Remote 1/6</div>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="top">
+      <div class="chip ok"><span class="dotmark"></span>nRF pair</div>
+      <div class="chip ok"><span class="dotmark"></span>Wi-Fi</div>
+      <div class="chip warn"><span class="dotmark"></span>MQTT off</div>
+      <div class="chip">24.2C Good</div>
+    </div>
+    <div class="content split">
+      <div class="tile">
+        <h1 class="title">Sync</h1>
+        <div class="sub">Model-only window</div>
+        <button class="btn primary big-action">Sync 30 s</button>
+        <div class="rows" style="margin-top:6px">
+          <div class="row"><b>Mute</b><span>0 s</span></div>
+          <div class="row"><b>State</b><span>COOL 24 F2</span></div>
+        </div>
+      </div>
+      <div class="tile">
+        <h1 class="title">Pairing</h1>
+        <div class="action-row">
+          <button class="btn primary">Pair</button>
+          <button class="btn warn">Unpair</button>
+        </div>
+        <div class="rows" style="margin-top:6px">
+          <div class="row"><b>Link</b><span>bonded</span></div>
+          <div class="row"><b>Last</b><span>12 s</span></div>
+          <div class="row"><b>Mode</b><span>advertise</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="home">Home</button>
+      <div class="dots"><span class="dot"></span><span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="page">Sync 2/6</div>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="top">
+      <div class="chip ok"><span class="dotmark"></span>nRF ready</div>
+      <div class="chip ok"><span class="dotmark"></span>Home</div>
+      <div class="chip ok"><span class="dotmark"></span>MQTT on</div>
+      <div class="chip ok">presence</div>
+    </div>
+    <div class="content">
+      <h1 class="title">Sensors</h1>
+      <div class="metrics">
+        <div class="metric"><div class="k">Temperature</div><div class="v">24.2C</div><div class="m">BME680</div></div>
+        <div class="metric"><div class="k">Humidity</div><div class="v">48%</div><div class="m">indoor</div></div>
+        <div class="metric"><div class="k">Pressure</div><div class="v">1014</div><div class="m">hPa</div></div>
+        <div class="metric"><div class="k">Gas</div><div class="v">82k</div><div class="m">ohms</div></div>
+        <div class="metric"><div class="k">Air</div><div class="v">Good</div><div class="m">relative</div></div>
+        <div class="metric"><div class="k">Presence</div><div class="v">02:12</div><div class="m">LD2410</div></div>
+      </div>
+      <div class="rows" style="margin-top:7px;grid-template-columns:1fr 1fr">
+        <div class="row"><b>BME</b><span>ready</span></div>
+        <div class="row"><b>LD</b><span>present</span></div>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="home">Home</button>
+      <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot active"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="page">Sensors 3/6</div>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="top">
+      <div class="chip ok"><span class="dotmark"></span>nRF ready</div>
+      <div class="chip warn"><span class="dotmark"></span>Wi-Fi AP</div>
+      <div class="chip warn"><span class="dotmark"></span>MQTT cfg</div>
+      <div class="chip">192.168.4.1</div>
+    </div>
+    <div class="content net-grid">
+      <div class="tile">
+        <h1 class="title">Wi-Fi</h1>
+        <div class="mini-row">
+          <div class="field">Home-2G</div>
+          <button class="btn primary">Scan</button>
+        </div>
+        <div class="field">SSID</div>
+        <div class="field">Password</div>
+        <button class="btn primary big-action" style="height:34px;margin-top:5px">Connect</button>
+      </div>
+      <div class="tile">
+        <h1 class="title">MQTT</h1>
+        <div class="field">Broker 192.168.0.12</div>
+        <div class="mini-row">
+          <div class="field">Port 1883</div>
+          <button class="btn">Auth</button>
+        </div>
+        <div class="field">User optional</div>
+        <button class="btn primary big-action" style="height:34px;margin-top:5px">Save</button>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="home">Home</button>
+      <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot active"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="page">Network 4/6</div>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="top">
+      <div class="chip ok"><span class="dotmark"></span>nRF ready</div>
+      <div class="chip ok"><span class="dotmark"></span>Wi-Fi</div>
+      <div class="chip ok"><span class="dotmark"></span>MQTT on</div>
+      <div class="chip ok">present 2m</div>
+    </div>
+    <div class="content">
+      <h1 class="title">Automation</h1>
+      <div style="position:absolute;left:0;top:27px;width:202px">
+        <div class="rule-list">
+          <div class="rule">
+            <div class="rule-top"><span><span class="dotmark" style="background:var(--green)"></span>Presence</span><span>Cool</span></div>
+            <div class="rule-bottom">after 5 min, enabled</div>
+          </div>
+          <div class="rule">
+            <div class="rule-top"><span><span class="dotmark" style="background:var(--amber)"></span>Absence</span><span>Off</span></div>
+            <div class="rule-bottom">after 15 min, enabled</div>
+          </div>
+          <div class="rule">
+            <div class="rule-top"><span><span class="dotmark"></span>Presence</span><span>Dry</span></div>
+            <div class="rule-bottom">after 30 min, disabled</div>
+          </div>
+        </div>
+      </div>
+      <div class="rule-actions">
+        <button class="btn">Edit</button>
+        <button class="btn primary">Add</button>
+        <button class="btn primary">Save</button>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="home">Home</button>
+      <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot active"></span><span class="dot"></span></div>
+      <div class="page">Rules 5/6</div>
+    </div>
+  </section>
+
+  <section class="screen">
+    <div class="top">
+      <div class="chip ok"><span class="dotmark"></span>nRF ready</div>
+      <div class="chip ok"><span class="dotmark"></span>Wi-Fi</div>
+      <div class="chip ok"><span class="dotmark"></span>MQTT on</div>
+      <div class="chip">heap 141k</div>
+    </div>
+    <div class="content">
+      <h1 class="title">System</h1>
+      <div class="split" style="height:82px">
+        <div class="tile">
+          <div class="sub">Display</div>
+          <div class="slider"><span></span></div>
+          <div class="rows" style="margin-top:9px">
+            <div class="row"><b>Bright</b><span>78%</span></div>
+            <div class="row"><b>Sleep</b><span>60 s</span></div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="sub">Pins</div>
+          <div class="pin-grid" style="margin-top:6px">
+            <div class="pin">SDA<b>33</b></div>
+            <div class="pin">SCL<b>32</b></div>
+            <div class="pin">TX<b>17</b></div>
+            <div class="pin">RX<b>16</b></div>
+            <div class="pin">HB<b>-1</b></div>
+            <div class="pin">LD-T<b>19</b></div>
+            <div class="pin">LD-R<b>18</b></div>
+            <div class="pin">UI<b>OK</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="sys-actions">
+        <button class="btn primary">Save pins</button>
+        <button class="btn danger">Reboot</button>
+      </div>
+    </div>
+    <div class="footer">
+      <button class="home">Home</button>
+      <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot active"></span></div>
+      <div class="page">System 6/6</div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

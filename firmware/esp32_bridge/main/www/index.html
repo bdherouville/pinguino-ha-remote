@@ -304,11 +304,11 @@
     <h2 data-i18n="pins">Broches / Câblage</h2>
     <p class="small" data-i18n="pinsInfo">GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.</p>
     <div class="pins-grid">
-      <label>BME280 SDA<input id="p_i2c_sda" inputmode="numeric"></label>
-      <label>BME280 SCL<input id="p_i2c_scl" inputmode="numeric"></label>
+      <label>BME SDA<input id="p_i2c_sda" inputmode="numeric"></label>
+      <label>BME SCL<input id="p_i2c_scl" inputmode="numeric"></label>
       <label>nRF TX<input id="p_nrf_tx" inputmode="numeric"></label>
       <label>nRF RX<input id="p_nrf_rx" inputmode="numeric"></label>
-      <label>nRF heartbeat<input id="p_nrf_hb" inputmode="numeric"></label>
+      <label>nRF heartbeat (-1 off)<input id="p_nrf_hb" inputmode="numeric"></label>
       <label>LD2410 TX<input id="p_ld_tx" inputmode="numeric"></label>
       <label>LD2410 RX<input id="p_ld_rx" inputmode="numeric"></label>
     </div>
@@ -362,9 +362,9 @@ const I18N = {
           en:'9 buttons + 3 sensors + presence + nRF status are published via HA auto-discovery.',
           de:'9 Tasten + 3 Sensoren + Präsenz + nRF-Status werden per HA-Autodiscovery veröffentlicht.'},
   pins:{fr:'Broches / Câblage',en:'Pins / Wiring',de:'Pins / Verkabelung'},
-  pinsInfo:{fr:'GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.',
-            en:'GPIO for each peripheral. Changes apply on reboot.',
-            de:'GPIO für jedes Peripheriegerät. Änderungen werden beim Neustart übernommen.'},
+  pinsInfo:{fr:'GPIO de chaque périphérique. nRF heartbeat = -1 si non câblé. Les changements s’appliquent au redémarrage.',
+            en:'GPIO for each peripheral. Use nRF heartbeat = -1 when unwired. Changes apply on reboot.',
+            de:'GPIO für jedes Peripheriegerät. nRF heartbeat = -1, wenn nicht verdrahtet. Änderungen werden beim Neustart übernommen.'},
   savePins:{fr:'Enregistrer les broches',en:'Save pins',de:'Pins speichern'},
   reboot:{fr:'Redémarrer pour appliquer',en:'Reboot to apply',de:'Neustart zum Übernehmen'},
   auto:{fr:'Automatisation (présence)',en:'Automation (presence)',de:'Automatisierung (Präsenz)'},

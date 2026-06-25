@@ -1,0 +1,4 @@
+CONFIG_IDF_TARGET="esp32s3"
+
+# Console on the native USB-Serial/JTAG (the S3 super-mini flash/log path).
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

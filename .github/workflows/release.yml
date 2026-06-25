@@ -10,30 +10,66 @@ permissions:
   contents: write
 
 jobs:
-  # ---- ESP32-S3 Wi-Fi bridge (ESP-IDF v6.0.1) --------------------------------
-  esp32:
+  touchscreen-invariants:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build + merge single flashable image
+      - name: Test touchscreen firmware contracts
+        run: python3 tools/test_touchscreen_contracts.py
+      - name: Check touchscreen firmware invariants
+        run: python3 tools/check_touchscreen_firmware.py
+
+  # ---- ESP32 Wi-Fi bridge flavors (ESP-IDF v6.0.1) ----------------------------
+  esp32:
+    needs: touchscreen-invariants
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: headless
+            sdkconfig: sdkconfig.headless
+            defaults: sdkconfig.defaults\;sdkconfig.defaults.headless
+            target: esp32s3
+            chip: esp32s3
+            bootloader_offset: '0x0'
+            flash_freq: 80m
+            image: ganymede-bridge-headless-esp32s3.bin
+          - flavor: touchscreen
+            sdkconfig: sdkconfig.touchscreen
+            defaults: sdkconfig.defaults\;sdkconfig.defaults.touchscreen
+            target: esp32
+            chip: esp32
+            bootloader_offset: '0x1000'
+            flash_freq: 40m
+            image: ganymede-bridge-touchscreen-esp32.bin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + merge ${{ matrix.flavor }} single flashable image
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0.1
-          target: esp32s3
+          target: ${{ matrix.target }}
           path: firmware/esp32_bridge
           # Build, then merge bootloader+partitions+app into one image flashable at 0x0
           # (offsets from build/flasher_args.json; flash settings dio/80m/2MB).
           command: >-
-            idf.py build &&
-            esptool --chip esp32s3 merge-bin -o ganymede-bridge-esp32s3.bin -f raw
-            --flash-mode dio --flash-freq 80m --flash-size 2MB
-            0x0 build/bootloader/bootloader.bin
-            0x8000 build/partition_table/partition-table.bin
-            0x10000 build/ganymede_bridge.bin
+            idf.py -B build-${{ matrix.flavor }}
+            -DSDKCONFIG=${{ matrix.sdkconfig }}
+            -DSDKCONFIG_DEFAULTS=${{ matrix.defaults }}
+            build &&
+            esptool --chip ${{ matrix.chip }} merge-bin -o ${{ matrix.image }} -f raw
+            --flash-mode dio --flash-freq ${{ matrix.flash_freq }} --flash-size 2MB
+            ${{ matrix.bootloader_offset }} build-${{ matrix.flavor }}/bootloader/bootloader.bin
+            0x8000 build-${{ matrix.flavor }}/partition_table/partition-table.bin
+            0x10000 build-${{ matrix.flavor }}/ganymede_bridge.bin &&
+            if [ "${{ matrix.flavor }}" = "headless" ]; then
+              cp ${{ matrix.image }} ganymede-bridge-esp32s3.bin;
+            fi
       - uses: actions/upload-artifact@v4
         with:
-          name: esp32
-          path: firmware/esp32_bridge/ganymede-bridge-esp32s3.bin
+          name: esp32-${{ matrix.flavor }}
+          path: firmware/esp32_bridge/ganymede-bridge*esp32*.bin
 
   # ---- nRF52840 BLE emulator (nRF Connect SDK v2.7.0, out-of-tree board) ------
   # Builds with the git-ignored clone_addr.h ABSENT, so the firmware falls back to

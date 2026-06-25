@@ -14,12 +14,14 @@ with the AC and **change its state on-air** — no cloud, no IR blaster.
 Two small boards in a stack, plus an optional sensor:
 
 ```
-HA / LAN ──MQTT/HTTP──► ESP32-S3 ──UART──► nRF52840 ──BLE──► AC
+HA / LAN ──MQTT/HTTP──► ESP32 bridge ──UART──► nRF52840 ──BLE──► AC
 ```
 
 - **nRF52840** — the BLE radio: emulates the remote, bonds with the AC.
-- **ESP32-S3** — the Wi-Fi bridge: web UI, MQTT, Home Assistant.
-- **BME280** — ambient temperature / humidity / pressure (optional), reported to HA.
+- **ESP32 bridge** — Wi-Fi, web UI, MQTT, Home Assistant. The existing headless build targets
+  ESP32-S3; the touchscreen build targets a plain ESP32.
+- **BME280 / BME680** — ambient sensing, reported to HA. Headless uses BME280; touchscreen uses
+  BME680.
 
 The BLE has to live on the nRF — the ESP32's radio can't pass the AC's pairing gate. Why, and
 the full protocol, is in [`docs/ganymede_protocol.md`](docs/ganymede_protocol.md).
@@ -59,11 +61,13 @@ twice** (a USB drive `NICENANO` appears), then drag a `.uf2` onto it.
 Details / local build / cloning a specific remote address →
 [`firmware/nrf52_emulator/README.md`](firmware/nrf52_emulator/README.md).
 
-### 2 · Flash the ESP32-S3 (Wi-Fi bridge)
+### 2 · Flash the ESP32 bridge
 
 - **Browser:** open the [web flasher](https://bdherouville.github.io/pinguino-ha-remote/flash/)
-  (Chrome/Edge), plug in, **Install**.
-- **CLI:** `esptool --chip esp32s3 -p <PORT> write_flash 0x0 ganymede-bridge-esp32s3.bin`
+  (Chrome/Edge), plug in, **Install**. It auto-selects the ESP32-S3 headless image or the
+  plain ESP32 touchscreen image based on the connected chip.
+- **CLI headless:** `esptool --chip esp32s3 -p <PORT> write_flash 0x0 ganymede-bridge-headless-esp32s3.bin`
+- **CLI touchscreen:** `esptool --chip esp32 -p <PORT> write_flash 0x0 ganymede-bridge-touchscreen-esp32.bin`
 
 Details / local build → [`firmware/esp32_bridge/README.md`](firmware/esp32_bridge/README.md).
 
@@ -77,6 +81,10 @@ ESP32-S3            nRF52840                 ESP32-S3        BME280 (optional)
   GND ───────────── GND
 ```
 115200 8N1. Pinouts and board quirks: [`docs/HARDWARE.md`](docs/HARDWARE.md).
+
+The touchscreen firmware flavor is built and released alongside the headless firmware. Its network,
+HTTP, MQTT, nRF, BME680 and local UI paths boot on the JC2432W328 plain ESP32 touchscreen board
+with the ST7789 display and CST820 touch controller configured.
 
 ### 4 · Connect the bridge to Wi-Fi
 
@@ -106,7 +114,7 @@ MQTT), or publish to `ganymede/cmd/<button>`.
 - [**Hardware & build notes**](docs/HARDWARE.md) — board gotchas (clock, bootloader, flash
   offset), pinouts, why the BLE lives on the nRF.
 - [**Releasing**](RELEASING.md) — how CI builds and publishes the binaries.
-- Firmware: [ESP32-S3 bridge](firmware/esp32_bridge/README.md) ·
+- Firmware: [ESP32 bridge](firmware/esp32_bridge/README.md) ·
   [nRF52840 emulator](firmware/nrf52_emulator/README.md) ·
   [nRF Sniffer](tools/nrf_sniffer/README.md).
 
