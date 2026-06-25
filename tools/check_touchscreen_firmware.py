@@ -420,6 +420,11 @@ def check_ui_settings() -> None:
         "init_lvgl_screens();",
         "UI screen setup must wait until the board layer has registered a display",
     )
+    tile_event = ui.split("static void tileview_event", 1)[-1].split("static lv_obj_t *make_tile", 1)[0]
+    require_contains(tile_event, "request_tile_build_neighbors(i)", "tileview events must queue lazy tile builds")
+    require("build_tile_neighbors(i)" not in tile_event, "tileview events must not synchronously build tiles")
+    require_contains(ui, "service_pending_tile_build_locked();", "UI loop must service deferred tile builds")
+    require_contains(ui, "lv_obj_is_scrolling(s_ui.tileview)", "deferred tile builds must wait for scrolling to stop")
 
     h_ui = web.split("static esp_err_t h_ui", 1)[-1].split("static esp_err_t h_pairing", 1)[0]
     for token in (

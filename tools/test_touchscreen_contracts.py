@@ -381,6 +381,15 @@ class UiContracts(unittest.TestCase):
         ):
             self.assertIn(token, ui)
 
+    def test_tileview_events_defer_lazy_tile_builds(self) -> None:
+        ui = read(MAIN / "ui_lvgl.c")
+        event = ui.split("static void tileview_event", 1)[1].split("static lv_obj_t *make_tile", 1)[0]
+
+        self.assertIn("request_tile_build_neighbors(i)", event)
+        self.assertNotIn("build_tile_neighbors(i)", event)
+        self.assertIn("service_pending_tile_build_locked();", ui)
+        self.assertIn("lv_obj_is_scrolling(s_ui.tileview)", ui)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -100,6 +100,7 @@ typedef struct {
 
 static ui_objects_t s_ui;
 static bool s_tile_built[UI_TILE_COUNT];
+static uint8_t s_tile_build_pending_mask;
 static bool s_lvgl_ready;
 static SemaphoreHandle_t s_lvgl_mutex;
 static esp_timer_handle_t s_lvgl_tick;
@@ -790,6 +791,24 @@ static void build_tile_neighbors(uint8_t index)
     }
 }
 
+static void request_tile_build(uint8_t index)
+{
+    if (index >= UI_TILE_COUNT || s_tile_built[index]) return;
+    s_tile_build_pending_mask |= (uint8_t)(1U << index);
+}
+
+static void request_tile_build_neighbors(uint8_t index)
+{
+    if (index >= UI_TILE_COUNT) return;
+    if (index > 0) {
+        request_tile_build((uint8_t)(index - 1));
+    }
+    request_tile_build(index);
+    if (index + 1 < UI_TILE_COUNT) {
+        request_tile_build((uint8_t)(index + 1));
+    }
+}
+
 static bool pointer_is_pressed(void)
 {
     lv_indev_t *indev = lv_indev_get_next(NULL);
@@ -808,7 +827,7 @@ static bool pointer_is_pressed(void)
 
 static void recover_tileview_snap_locked(void)
 {
-    if (!s_ui.tileview || pointer_is_pressed()) return;
+    if (!s_ui.tileview || pointer_is_pressed() || lv_obj_is_scrolling(s_ui.tileview)) return;
 
     int32_t width = lv_obj_get_content_width(s_ui.tileview);
     if (width <= 0) return;
@@ -846,13 +865,13 @@ static void tileview_event(lv_event_t *e)
     log_tileview_diag(lv_event_name(code), i);
 #endif
     if (code == LV_EVENT_SCROLL_BEGIN) {
-        build_tile_neighbors(i);
+        request_tile_build_neighbors(i);
         return;
     }
     if (code == LV_EVENT_VALUE_CHANGED) {
         strlcpy(s_screen, screen_name_for_index(i), sizeof(s_screen));
         update_page_dots(i);
-        build_tile_neighbors(i);
+        request_tile_build_neighbors(i);
         publish_display_state();
     }
 }
@@ -1300,6 +1319,7 @@ static void build_settings_screen(void)
 static void build_tile_if_needed(uint8_t index)
 {
     if (index >= UI_TILE_COUNT || s_tile_built[index]) return;
+    s_tile_build_pending_mask &= (uint8_t)~(1U << index);
 #ifdef CONFIG_PINGUINO_TOUCHSCREEN_SERIAL_DIAGNOSTIC
     int64_t start_us = esp_timer_get_time();
     ESP_LOGI(TAG, "diag build_tile_begin tile=%u built=0x%02x heap=%lu",
@@ -1335,6 +1355,25 @@ static void build_tile_if_needed(uint8_t index)
              (unsigned)built_tile_mask(),
              (unsigned long)esp_get_free_heap_size());
 #endif
+}
+
+static void service_pending_tile_build_locked(void)
+{
+    if (!s_lvgl_ready || !s_tile_build_pending_mask || pointer_is_pressed()) return;
+    if (s_ui.tileview && lv_obj_is_scrolling(s_ui.tileview)) return;
+
+    uint8_t active = 0;
+    if (active_tile_index(&active) && (s_tile_build_pending_mask & (uint8_t)(1U << active))) {
+        build_tile_if_needed(active);
+        return;
+    }
+
+    for (uint8_t i = 0; i < UI_TILE_COUNT; i++) {
+        if (s_tile_build_pending_mask & (uint8_t)(1U << i)) {
+            build_tile_if_needed(i);
+            return;
+        }
+    }
 }
 
 static void build_root_screen(void)
@@ -1766,6 +1805,10 @@ static void ui_task(void *arg)
             s_ui_diag_phase = "snap_recover";
 #endif
             recover_tileview_snap_locked();
+#ifdef CONFIG_PINGUINO_TOUCHSCREEN_SERIAL_DIAGNOSTIC
+            s_ui_diag_phase = "tile_build";
+#endif
+            service_pending_tile_build_locked();
 #ifdef CONFIG_PINGUINO_TOUCHSCREEN_SERIAL_DIAGNOSTIC
             s_ui_diag_phase = "refresh";
 #endif
