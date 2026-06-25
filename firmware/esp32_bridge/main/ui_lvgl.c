@@ -1850,7 +1850,7 @@ bool ui_lvgl_backlight_on(void) { return s_backlight_on; }
 bool ui_lvgl_remote_buttons_enabled(void)
 {
     nrf_state_t st = uart_link_nrf_state();
-    return st == NRF_READY || st == NRF_BONDED;
+    return uart_link_mute_secs() > 0 || st == NRF_READY;
 }
 
 const char *ui_lvgl_remote_disabled_reason(void)

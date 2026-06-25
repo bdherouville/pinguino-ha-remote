@@ -103,8 +103,7 @@ bool uart_link_ready(void) { return s_effective == NRF_READY; }
 bool uart_link_will_model(void)
 {
     return esp_timer_get_time() < s_mute_until_us ||
-           s_effective == NRF_READY ||
-           s_effective == NRF_BONDED;
+           s_effective == NRF_READY;
 }
 
 bool uart_link_press(const char *btn)
@@ -118,13 +117,13 @@ bool uart_link_press(const char *btn)
         ac_state_apply(btn);
         return true;
     }
-    if (s_effective != NRF_READY && s_effective != NRF_BONDED) {
-        // No bonded/ready relay path: the press can't reach the AC and won't move the model.
+    if (s_effective != NRF_READY) {
+        // No ready relay path: the press can't reach the AC and won't move the model.
         // Report a no-op instead of stamping the debounce or faking success.
         ESP_LOGI(TAG, "press %s [no relay — link not ready]", btn);
         return false;
     }
-    // Live + bonded/ready: atomically claim the press only if a full gap has elapsed since the last
+    // Live + ready: atomically claim the press only if a full gap has elapsed since the last
     // relayed one (the AC's touch debounce). Both the web handler and the HA worker funnel through
     // here, so the atomic check-and-stamp stops a tap + a worker press double-firing in the gap.
     // Read the clock *inside* the lock so a preemption before we enter can't stamp a stale time.

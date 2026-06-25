@@ -18,7 +18,7 @@
 
 #define NVS_NS    "mqtt"
 #define AVTY_TOPIC "ganymede/status"                 // legacy bridge availability topic
-#define STATE_AVTY_TOPIC "ganymede/state/availability"
+#define STATE_AVTY_TOPIC AVTY_TOPIC                  // keep one retained availability/LWT topic
 #define CMD_PREFIX "ganymede/cmd/"
 #define NRF_TOPIC  "ganymede/nrf"
 #define NRF_STATE_TOPIC "ganymede/state/nrf_status"

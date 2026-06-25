@@ -140,7 +140,7 @@ ganymede/cmd/flap
 Required:
 
 ```txt
-ganymede/state/availability
+ganymede/status
 ganymede/state/nrf_status
 ganymede/state/last_button
 ganymede/state/sensor/temperature
@@ -190,7 +190,7 @@ Expose:
 Use one primary availability topic:
 
 ```txt
-ganymede/state/availability
+ganymede/status
 ```
 
 Values:

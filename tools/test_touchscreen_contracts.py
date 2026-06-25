@@ -176,8 +176,8 @@ class NrfStateContracts(unittest.TestCase):
         self.assertLess(handle_line.index('strncmp(line, "status ", 7)'),
                         handle_line.index("s_last_rx_us = esp_timer_get_time();"))
         self.assertIn("gpio_set_pull_mode((gpio_num_t)pn->nrf_rx, GPIO_PULLUP_ONLY)", uart)
-        self.assertIn("st == NRF_READY || st == NRF_BONDED", ui)
-        self.assertNotIn("uart_link_mute_secs() > 0", ui)
+        self.assertIn("return esp_timer_get_time() < s_mute_until_us ||\n           s_effective == NRF_READY;", uart)
+        self.assertIn("uart_link_mute_secs() > 0 || st == NRF_READY", ui)
 
 
 class SensorStateContracts(unittest.TestCase):
@@ -321,7 +321,7 @@ class ApiMqttHaContracts(unittest.TestCase):
         mqtt = read(MAIN / "mqtt_ha.c")
 
         for token in (
-            '#define STATE_AVTY_TOPIC "ganymede/state/availability"',
+            '#define STATE_AVTY_TOPIC AVTY_TOPIC',
             '#define CMD_PREFIX "ganymede/cmd/"',
             '#define NRF_STATE_TOPIC "ganymede/state/nrf_status"',
             '#define LAST_BUTTON_TOPIC "ganymede/state/last_button"',

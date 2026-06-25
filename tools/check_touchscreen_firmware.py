@@ -238,8 +238,13 @@ def check_command_funnel() -> None:
         require_contains(text, expected, f"{path_name} must route button commands through command queue")
 
     ui = read(MAIN / "ui_lvgl.c")
-    require("uart_link_mute_secs() > 0" not in ui, "touch UI must not enable buttons only because sync mute is active")
-    require_contains(ui, "st == NRF_READY || st == NRF_BONDED", "touch UI must enable commands only for ready/bonded nRF")
+    uart = read(MAIN / "uart_link.c")
+    require_contains(
+        uart,
+        "return esp_timer_get_time() < s_mute_until_us ||\n           s_effective == NRF_READY;",
+        "touch commands must model only during sync or once nRF is ready",
+    )
+    require_contains(ui, "uart_link_mute_secs() > 0 || st == NRF_READY", "touch UI must enable commands only for sync/ready nRF")
 
 
 def check_state_api_and_sensors() -> None:
@@ -307,7 +312,7 @@ def check_mqtt_and_ha_surface() -> None:
     mqtt = read(MAIN / "mqtt_ha.c")
 
     for token in (
-        '#define STATE_AVTY_TOPIC "ganymede/state/availability"',
+        '#define STATE_AVTY_TOPIC AVTY_TOPIC',
         '#define CMD_PREFIX "ganymede/cmd/"',
         '#define NRF_STATE_TOPIC "ganymede/state/nrf_status"',
         '#define LAST_BUTTON_TOPIC "ganymede/state/last_button"',
