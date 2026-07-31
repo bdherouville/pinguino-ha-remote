@@ -47,7 +47,7 @@ void               ac_state_init(void);              // load from NVS (or defaul
 const ac_state_t  *ac_state_get(void);               // current modeled state (snapshot via lock)
 void               ac_state_get_copy(ac_state_t *out);
 
-// Update the model from a button we just dispatched (called inside uart_link_press). Applies
+// Update the model from a button we just dispatched (called inside ble_emu_press). Applies
 // the manual's mode-aware semantics; ignores presses that the AC would ignore in the current
 // mode (e.g. up/down outside COOL). Returns true if the modeled state changed.
 bool               ac_state_apply(const char *btn);

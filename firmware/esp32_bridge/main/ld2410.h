@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Hi-Link LD2410 24 GHz presence radar on UART2 (pins from the runtime config, see pins.h).
+// Hi-Link LD2410 24 GHz presence radar on UART1 (pins from the runtime config, see pins.h).
 // The module free-runs in its default "target data" reporting mode at 256000 8N1; a task
 // parses the report frames and caches the current target state. No configuration is sent —
 // we only listen.

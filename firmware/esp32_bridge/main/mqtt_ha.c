@@ -1,5 +1,5 @@
 #include "mqtt_ha.h"
-#include "uart_link.h"
+#include "ble_emu.h"
 #include "ac_state.h"
 #include "ac_cmd.h"
 #include <string.h>
@@ -12,14 +12,16 @@
 #define NVS_NS    "mqtt"
 #define AVTY_TOPIC "ganymede/status"
 #define CMD_PREFIX "ganymede/cmd/"
-#define NRF_TOPIC  "ganymede/nrf"
+// Kept as ganymede/nrf (and unique_id ganymede_nrf below) even though the emulator now
+// runs on this chip: renaming would orphan the existing Home Assistant entity.
+#define LINK_TOPIC "ganymede/nrf"
 #define PRES_TOPIC "ganymede/presence"
 #define PRES_AVTY  "ganymede/presence/status"   // per-sensor availability (LD2410 alive?)
 #define AC_BASE    "ganymede/ac/"                // climate state/<x> + command <x>/set
 
 static const char *TAG = "mqtt";
 
-// HA buttons (name = UART/btn id, label = HA entity name).
+// HA buttons (name = emulator button id, label = HA entity name).
 static const struct { const char *name, *label; } BTNS[] = {
     {"power","Power"}, {"up","Up"}, {"down","Down"}, {"mode","Mode"}, {"eco","Eco"},
     {"timer","Timer"}, {"fan","Fan"}, {"silent","Silent"}, {"flap","Flap"},
@@ -28,7 +30,7 @@ static const struct { const char *name, *label; } BTNS[] = {
 
 static esp_mqtt_client_handle_t s_client;
 static volatile bool s_connected;
-static char s_nrf[16] = "offline";   // last nRF link state, republished on (re)connect
+static char s_link[16] = "offline";  // last emulator state, republished on (re)connect
 static char s_presence[4] = "OFF";      // last LD2410 presence, republished on (re)connect
 static char s_presence_avail[8] = "offline";   // LD2410 availability (online once frames seen)
 static char s_host[64] = "";
@@ -89,10 +91,10 @@ static void publish_discovery(void)
             S[i].name, S[i].id, S[i].id, S[i].unit, S[i].dc);
         esp_mqtt_client_publish(s_client, topic, payload, 0, 1, true);
     }
-    // nRF link state -> diagnostic sensor
+    // BLE emulator state -> diagnostic sensor
     snprintf(topic, sizeof(topic), "homeassistant/sensor/ganymede_nrf/config");
     snprintf(payload, sizeof(payload),
-        "{\"name\":\"nRF Link\",\"unique_id\":\"ganymede_nrf\",\"state_topic\":\"" NRF_TOPIC "\","
+        "{\"name\":\"BLE Link\",\"unique_id\":\"ganymede_nrf\",\"state_topic\":\"" LINK_TOPIC "\","
         "\"icon\":\"mdi:bluetooth\",\"entity_category\":\"diagnostic\",\"availability_topic\":\"" AVTY_TOPIC "\","
         "\"device\":{\"identifiers\":[\"ganymede_bridge\"],\"name\":\"Ganymede Bridge\"}}");
     esp_mqtt_client_publish(s_client, topic, payload, 0, 1, true);
@@ -155,11 +157,11 @@ void mqtt_ha_publish_ac(const ac_state_t *st)
     esp_mqtt_client_publish(s_client, AC_BASE "silent", st->silent ? "ON" : "OFF", 0, 1, true);
 }
 
-void mqtt_ha_publish_nrf(const char *state)
+void mqtt_ha_publish_link(const char *state)
 {
-    strlcpy(s_nrf, state ? state : "offline", sizeof(s_nrf));
+    strlcpy(s_link, state ? state : "offline", sizeof(s_link));
     if (s_client && s_connected)
-        esp_mqtt_client_publish(s_client, NRF_TOPIC, s_nrf, 0, 1, true);
+        esp_mqtt_client_publish(s_client, LINK_TOPIC, s_link, 0, 1, true);
 }
 
 void mqtt_ha_publish_presence(bool present)
@@ -200,7 +202,7 @@ static void on_mqtt(void *args, esp_event_base_t base, int32_t id, void *data)
         ESP_LOGI(TAG, "connected to %s:%d", s_host, s_port);
         esp_mqtt_client_publish(s_client, AVTY_TOPIC, "online", 0, 1, true);
         publish_discovery();
-        esp_mqtt_client_publish(s_client, NRF_TOPIC, s_nrf, 0, 1, true);
+        esp_mqtt_client_publish(s_client, LINK_TOPIC, s_link, 0, 1, true);
         esp_mqtt_client_publish(s_client, PRES_AVTY, s_presence_avail, 0, 1, true);
         esp_mqtt_client_publish(s_client, PRES_TOPIC, s_presence, 0, 1, true);
         esp_mqtt_client_subscribe(s_client, CMD_PREFIX "+", 1);
@@ -231,7 +233,7 @@ static void on_mqtt(void *args, esp_event_base_t base, int32_t id, void *data)
             ESP_LOGI(TAG, "HA ac cmd '%s' = '%s'", f, payload);
         } else if (!strncmp(topic, CMD_PREFIX, strlen(CMD_PREFIX))) {
             const char *btn = topic + strlen(CMD_PREFIX);
-            bool ok = uart_link_press(btn);
+            bool ok = ble_emu_press(btn);
             ESP_LOGI(TAG, "HA press '%s' -> %s", btn, ok ? "sent" : "invalid");
         }
         break;

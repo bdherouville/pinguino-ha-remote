@@ -1,6 +1,6 @@
 #include "ac_cmd.h"
 #include "ac_state.h"
-#include "uart_link.h"
+#include "ble_emu.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -11,7 +11,7 @@ static const char *TAG = "accmd";
 
 // The AC's capacitive touch buttons debounce ~1.5 s: presses closer than that are dropped, which
 // silently desyncs an open-loop multi-press sequence (e.g. fan->dry needs two "mode" presses).
-// Pace to UART_LINK_PRESS_GAP_MS, comfortably above the debounce.
+// Pace to BLE_EMU_PRESS_GAP_MS, comfortably above the debounce.
 #define MAX_STEPS    40       // hard cap on any single sequence (temp can need many)
 
 typedef enum { REQ_MODE, REQ_TEMP, REQ_FAN, REQ_SW } req_kind_t;
@@ -27,17 +27,17 @@ static QueueHandle_t s_q;
 static void press(const char *b)
 {
     // Wait until a full gap has elapsed since the last relayed press — which includes a web tap
-    // that interleaved between worker presses (uart_link stamps every relayed press) — then fire.
+    // that interleaved between worker presses (ble_emu stamps every relayed press) — then fire.
     // Pacing *before* the press off the shared timestamp keeps the AC-registered gap correct; a
     // fixed delay-after would let the worker fire just behind such a tap and be coalesced away.
-    // If a tap still races in during the wait, uart_link_press() coalesces ours (returns false);
+    // If a tap still races in during the wait, ble_emu_press() coalesces ours (returns false);
     // re-wait and retry so the sequence doesn't silently drop a step. Bounded so non-stop
     // interleaving taps can't hang the worker.
     for (int attempt = 0; attempt < 10; attempt++) {
-        if (!uart_link_will_model()) return;  // link dropped / not commandable — stop; do_* re-checks
-        int64_t wait_us = (int64_t)UART_LINK_PRESS_GAP_MS * 1000 - uart_link_since_press_us();
+        if (!ble_emu_will_model()) return;  // link dropped / not commandable — stop; do_* re-checks
+        int64_t wait_us = (int64_t)BLE_EMU_PRESS_GAP_MS * 1000 - ble_emu_since_press_us();
         if (wait_us > 0) vTaskDelay(pdMS_TO_TICKS((TickType_t)(wait_us / 1000) + 1));
-        if (uart_link_press(b)) return;       // relayed + folded into ac_state
+        if (ble_emu_press(b)) return;       // relayed + folded into ac_state
     }
 }
 
@@ -45,12 +45,12 @@ static void press(const char *b)
 // is unreachable — bail rather than spin pressing a model that won't move.
 static void do_mode(ac_mode_t target, bool want_on)
 {
-    if (!uart_link_will_model()) return;
+    if (!ble_emu_will_model()) return;
     ac_state_t st; ac_state_get_copy(&st);
     if (!want_on) { if (st.on) press("power"); return; }
     if (!st.on) press("power");               // wake (resumes last mode)
     for (int i = 0; i < 3; i++) {
-        if (!uart_link_will_model()) return;
+        if (!ble_emu_will_model()) return;
         ac_state_get_copy(&st);
         if (st.mode == target) break;
         press("mode");
@@ -60,7 +60,7 @@ static void do_mode(ac_mode_t target, bool want_on)
 static void do_temp(int target)
 {
     for (int i = 0; i < MAX_STEPS; i++) {
-        if (!uart_link_will_model()) return;
+        if (!ble_emu_will_model()) return;
         ac_state_t st; ac_state_get_copy(&st);
         if (!st.on || st.mode != AC_MODE_COOL) break;   // setpoint is COOL-only
         if (st.temp_c == target) break;
@@ -71,7 +71,7 @@ static void do_temp(int target)
 static void do_fan(ac_fan_t target)
 {
     for (int i = 0; i < 5; i++) {
-        if (!uart_link_will_model()) return;
+        if (!ble_emu_will_model()) return;
         ac_state_t st; ac_state_get_copy(&st);
         if (!st.on || st.mode == AC_MODE_DRY) break;             // not settable in dry
         if (target == AC_FAN_AUTO && st.mode != AC_MODE_COOL) break; // auto = cool only
@@ -82,7 +82,7 @@ static void do_fan(ac_fan_t target)
 
 static void do_switch(const char *which, bool on)
 {
-    if (!uart_link_will_model()) return;
+    if (!ble_emu_will_model()) return;
     ac_state_t st; ac_state_get_copy(&st);
     if (!st.on) return;
     bool eco_sil = (!strcmp(which, "eco") || !strcmp(which, "silent"));

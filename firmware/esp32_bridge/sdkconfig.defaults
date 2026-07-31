@@ -1,10 +1,42 @@
-CONFIG_IDF_TARGET="esp32s3"
+# Settings shared by every supported chip. Per-target files (sdkconfig.defaults.esp32c3,
+# .esp32s3, ...) are applied on top automatically by the build system.
+#
+# CONFIG_IDF_TARGET is deliberately NOT pinned here — this firmware builds for the ESP32,
+# ESP32-S3, ESP32-C3 and ESP32-C6. Choose the chip with `idf.py set-target <target>`, which is
+# also what picks up the matching per-target file below.
 
-# Larger app partition (Wi-Fi + HTTP server + led_strip don't fit the 1 MB default).
+# Larger app partition (Wi-Fi + BLE + HTTP server + led_strip don't fit the 1 MB default).
+# NOTE: adding NimBLE grew the image substantially. If the link step reports the app does not
+# fit, switch to a custom partition table rather than trimming features.
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
 
 # HTTP server: allow a few more URI handlers and a longer request header.
 CONFIG_HTTPD_MAX_URI_HANDLERS=16
 
-# Console on the native USB-Serial/JTAG (the S3 super-mini flash/log path).
-CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# ---- Bluetooth: NimBLE host for the Ganymede remote emulator (ble_emu.c) ----
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# We are only ever a peripheral: the AC is the central and connects to us. Compiling out the
+# central/observer roles saves a useful amount of flash.
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+
+# The device the AC sees. Also set at runtime via ble_svc_gap_device_name_set().
+CONFIG_BT_NIMBLE_SVC_GAP_DEVICE_NAME="Ganymede"
+
+# Pairing: the real remote bonds LEGACY Just Works (SC=0, MITM=0, NoInputNoOutput) and the AC
+# accepts it. Both legacy and SC are compiled in so the stack can still respond if the AC ever
+# insists on Secure Connections; the runtime choice is ble_hs_cfg.sm_sc = 0 in ble_emu.c.
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+
+# Persist the bond in NVS so the AC's encrypted reconnect survives a reboot or a power cut.
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+
+# Wi-Fi and BLE share the single 2.4 GHz radio, and this board has to run both at once (web UI
+# / MQTT plus the AC's ~30-50 ms BLE link). Software coexistence arbitrates between them.
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y

@@ -18,40 +18,47 @@ reports** as the manual remote.
 
 Always show evidence (serial log, `.pcap`), not just "it should work".
 
-## Architecture — two radios, by necessity
+## Architecture — one board for the product, a second radio only for RE
 
-The **ESP32 cannot do the BLE** for this device: its radio neither sniffs the real
-remote nor gets seen by the AC as an emulator (both verified; Android, a non-ESP
-radio, does both). So:
+The ESP32 **cannot sniff** this device (its radio never locks onto the remote's sparse
+low-power `ADV_IND`), so reverse engineering needs an nRF52840 running the nRF Sniffer.
+But **emulating needs no receive path** — the emulator advertises and the AC scans — so
+the emulator lives on the ESP32-S3 with everything else.
 
-- **nRF52840** = BLE radio for everything (sniffer + emulator). 3 boards: #1 sniffer,
-  #2 emulator, #3 spare.
-- **ESP32-S3** = Wi-Fi bridge only (MQTT/HTTP ↔ UART to the nRF emulator).
+- **ESP32-S3** = the whole product: Wi-Fi, web UI, MQTT/HA, **and** the BLE emulator
+  (`firmware/esp32_bridge/main/ble_emu.c`, NimBLE).
+- **nRF52840** = nRF Sniffer, for captures only. The Zephyr emulator under
+  `firmware/nrf52_emulator/zephyr/` is the field-verified two-board fallback.
 
 ```
-HA/LAN ──MQTT/HTTP──► ESP32-S3 ──UART──► nRF52840 (emulator) ──BLE──► AC (central)
-                                          nRF52840 (nRF Sniffer) ──► Wireshark
+HA/LAN ──MQTT/HTTP──► ESP32-S3 (bridge + emulator) ──BLE──► AC (central)
+                      nRF52840 (nRF Sniffer) ──► Wireshark
 ```
 
-## Phases (do in order; M4 onward gated by RE)
+**Do not reinstate "the ESP32 can't do this BLE".** It conflated sniffing with
+emulating. The AC's pairing gate is the advertising **discoverable-flags byte**
+(`0x01` Limited when unbonded), not chip identity and not the address — see the
+protocol doc's *Pairing mode* and *Hardware reception*.
 
-1. **Sniffer first** (`tools/nrf_sniffer/`) — resolve the **AC-side SMP contradiction**
-   (Just Works vs MITM + LE Secure Connections) and capture keys.
-2. **Emulator** (`firmware/nrf52_emulator/`, Bluefruit) — port the reference NimBLE
-   emulator with the Phase-1 SMP.
-3. **ESP32 Wi-Fi bridge** (`firmware/esp32_bridge/`).
+## Status
 
-Status: protocol fully reverse-engineered; **blocker = AC-side SMP** (Phase 1).
+Protocol fully reverse-engineered; the two-board build works end to end. The
+single-board ESP32-S3 emulator is **written but not yet confirmed against the AC** —
+that is the open item. Its four must-haves are the header comment of `ble_emu.c`.
 
 ## Layout
 
 - `docs/ganymede_protocol.md` — **authoritative** protocol & RE findings (advertising,
-  GATT, Report Map, 9-button map, link-layer identity gate, SMP, connection, status).
-  `docs/HARDWARE.md` — board/build notes. `docs/references/` — datasheets + AC manual.
+  GATT, Report Map, 9-button map, the discoverable-flags pairing gate, SMP, connection,
+  status). `docs/HARDWARE.md` — board/build notes. `docs/references/` — datasheets + manual.
 - `captures/` — **local-only**, git-ignored immutable captures (sniffer/HCI). **Never
   edit raw; never commit unredacted keys (LTK/IRK/CSRK/passkeys).**
-- `firmware/nrf52_emulator/reference/esp-idf-nimble/` — the working delonghi NimBLE
-  emulator: **source of truth for the port**, not built here.
+- `firmware/esp32_bridge/main/ble_emu.c` — the live emulator (NimBLE).
+- `firmware/nrf52_emulator/zephyr/src/main.c` — the field-verified emulator; **source of
+  truth for on-air behaviour** when in doubt, since it is the one proven on the AC.
+- `firmware/nrf52_emulator/reference/esp-idf-nimble/` — the *broken* first ESP32 attempt.
+  Historical only: it advertised General Discoverable and never requested security. Do not
+  copy from it.
 - `tools/linux-ble/` — Linux/BlueZ central harness to test the emulator before the AC.
 
 ## Documentation discipline
@@ -59,17 +66,20 @@ Status: protocol fully reverse-engineered; **blocker = AC-side SMP** (Phase 1).
 Every protocol claim carries a **Status** (`observed`/`inferred`/`partial`/`unknown`)
 and a **Source** (a capture under `captures/`). Never upgrade a Status
 without a capture. Never hard-code an emulator value whose requirement row is still
-`unknown` (today: the AC-side SMP).
+`unknown`. Claims derived from *press-counting* a snoop (rather than reading the bytes)
+are weak: that is how UP/DOWN ended up inverted in the button table for months.
 
 ## Build / flash
 
 - **nRF Sniffer (#1):** flash Nordic `nrf_sniffer_*.uf2` via UF2 (double-tap RESET →
   drag-drop). Wireshark + extcap plugin.
-- **nRF emulator (#2), Bluefruit:** `arduino-cli compile/upload -b adafruit:nrf52:pca10056`
-  or UF2. (Escalate to nRF Connect SDK/Zephyr only if Phase 1 shows MITM+SC needs it.)
-- **ESP32-S3 bridge:** ESP-IDF v6.0.1 —
+- **ESP32-S3 (bridge + emulator):** ESP-IDF v6.0.1 —
   `source ~/.espressif/v6.0.1/esp-idf/export.sh` then
   `idf.py fullclean && idf.py erase-flash && idf.py build flash monitor`.
+  After a pinout/Kconfig change, `fullclean` matters. Watch the boot log for the HID
+  report-handle line — it self-checks the GATT layout.
+- **nRF emulator (two-board fallback):** nRF Connect SDK / Zephyr,
+  `west build -b nice_nano/nrf52840 …` then drag `zephyr.uf2` to `NICENANO`.
 
 ## Workflow
 

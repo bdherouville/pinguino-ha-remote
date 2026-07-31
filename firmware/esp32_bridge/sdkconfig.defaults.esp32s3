@@ -1,0 +1,6 @@
+# ESP32-S3 (SuperMini) — applied on top of sdkconfig.defaults.
+#
+# The reference target. 4 MB flash + 2 MB PSRAM and 512 KB SRAM, so nothing needs trimming.
+
+# Console on the native USB-Serial/JTAG — the single USB-C port is the flash/log path.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y

@@ -1,13 +1,23 @@
 # nRF52840 emulator — the BLE radio
 
 A BLE **peripheral** that impersonates the De'Longhi "Ganymede" remote so the **AC connects
-to it** and receives the same HID button reports. This is where the BLE lives (the ESP32
-can't — see [`../../docs/HARDWARE.md`](../../docs/HARDWARE.md)).
+to it** and receives the same HID button reports.
 
-The working firmware is the **Zephyr / nRF Connect SDK** app under [`zephyr/`](zephyr/). The
-Arduino/Bluefruit sketch in `src/` and `reference/esp-idf-nimble/` are kept only as
-historical reference — they **cannot** pass the AC's link-layer identity gate (see
-[`../../docs/ganymede_protocol.md`](../../docs/ganymede_protocol.md)).
+> **This is now the fallback, not the main path.** The emulator runs on the ESP32-S3 itself
+> (`../esp32_bridge/main/ble_emu.c`), so a working unit is one board. This firmware is the
+> **field-verified** implementation — the one proven to pair with and drive the AC — so keep it
+> as the reference for on-air behaviour and as a two-board fallback if the single-board build
+> disappoints.
+
+The working firmware is the **Zephyr / nRF Connect SDK** app under [`zephyr/`](zephyr/).
+
+`src/` (Arduino/Bluefruit) and `reference/esp-idf-nimble/` are historical. Note that the
+reason given for abandoning them — "they cannot pass the AC's link-layer identity gate" — was
+**wrong**: there is no such gate (this very firmware reports Nordic's company ID and pairs
+fine). Bluefruit failed on the discoverable/SMP behaviour it couldn't express; the NimBLE
+reference failed because it advertised General instead of Limited Discoverable and never
+requested security. See
+[`../../docs/ganymede_protocol.md`](../../docs/ganymede_protocol.md).
 
 ---
 

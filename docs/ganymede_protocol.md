@@ -91,8 +91,8 @@ Each press emits **one 8-byte notification, duplicated 2× on air, no key-releas
 | Button | Manual | Report (8 bytes) | byte2/3 bit | Status |
 |---|:--:|---|---|---|
 | Power | D1 | `00 00 01 00 00 00 00 00` | byte2 b0 | observed |
-| DOWN / decrease | D4 | `00 00 02 00 00 00 00 00` | byte2 b1 | observed |
-| UP / increase | D7 | `00 00 04 00 00 00 00 00` | byte2 b2 | observed |
+| DOWN / decrease | D4 | `00 00 04 00 00 00 00 00` | byte2 b2 | observed (corrected) |
+| UP / increase | D7 | `00 00 02 00 00 00 00 00` | byte2 b1 | observed (corrected) |
 | Mode | D6 | `00 00 08 00 00 00 00 00` | byte2 b3 | observed |
 | Eco (myEcoRealFeel) | D8 | `00 00 10 00 00 00 00 00` | byte2 b4 | observed |
 | Timer | D5 | `00 00 20 00 00 00 00 00` | byte2 b5 | observed |
@@ -102,6 +102,12 @@ Each press emits **one 8-byte notification, duplicated 2× on air, no key-releas
 
 Source: Android HCI snoop (labeled via press-count in
 `captures/raw/delonghi_re/ganymede-btsnoop4.log`).
+
+> **UP/DOWN were inverted here until 2026-07.** The press-count labelling of the snoop
+> swapped them; the emulator firmware that actually drives the AC uses `up`=`0x02` /
+> `down`=`0x04`, and the setpoint moves the right way on the unit. The table above is the
+> corrected mapping. Anything else in this file derived from press-counting deserves the same
+> suspicion until re-checked against the AC's own display.
 
 ## Link-Layer identity (observed — but NOT the pairing gate)
 
@@ -165,19 +171,32 @@ Two-sided, ordered, 60 s window:
 Status: observed (user + manual). Source: De'Longhi Pinguino manual
 (`references/delonghi_AC_manual.pdf`).
 
-## Hardware reception (why the BLE lives on the nRF, not the ESP32)
+## Hardware reception — two different questions, long conflated
 
 | Observer | Sees real remote (sniff)? | AC pairs its emulator? |
 |---|:--:|:--:|
 | Linux/BlueZ | ✅ | — |
 | Android | ✅ | — |
-| **ESP32-S3 / C3** | ❌ never | ❌ never |
-| **nRF52840 (Zephyr/NCS)** | ✅ (nRF Sniffer) | ✅ **bonds** (Cypress-OUI public address) |
+| **ESP32-S3** | ❌ never | ✅ (see below) |
+| **nRF52840 (Zephyr/NCS)** | ✅ (nRF Sniffer) | ✅ bonds |
 
-The ESP32-S3/C3 **radio cannot lock onto** the remote's brief low-power Cypress `ADV_IND`,
-and the AC never accepts an ESP32 emulator — while a phone (a different radio) does both.
-So BLE lives entirely on the **nRF52840** (sniffer + emulator) and the **ESP32 is
-Wi-Fi-only**. See [`HARDWARE.md`](HARDWARE.md) for board details.
+**Sniffing and emulating are separate capabilities and only the first is an ESP32 limitation.**
+The ESP32-S3 radio genuinely cannot lock onto the remote's brief, sparse low-power `ADV_IND`
+— for reverse engineering you need the nRF Sniffer (a controller-based scanner can't see the
+remote↔AC link at all). But **emulating does not require receiving those adverts**: the
+emulator is a peripheral that advertises and waits, and the AC is the one doing the scanning.
+
+The claim that "the AC never accepts an ESP32 emulator" was an artefact of the ESP32 attempt's
+own configuration, not its radio. That build
+(`firmware/nrf52_emulator/reference/esp-idf-nimble/`) advertised **General** Discoverable
+(`0x06`) and put the Cypress manufacturer data in the **primary** `ADV_IND`, and never sent an
+SMP Security Request — i.e. it failed all three of the requirements established below and in
+*Pairing mode*. It was never retested once those were understood. The bridge firmware now runs
+the emulator on the ESP32-S3's own radio (`firmware/esp32_bridge/main/ble_emu.c`).
+
+Status: the ESP32 sniffing limitation is **observed**; ESP32 emulation is **partial** — the
+three known gates are implemented, on-air confirmation pending. Source: this repo's captures
+plus the archived ESP32 build's advertising configuration.
 
 ## Pairing mode — the discoverable-flags gate (on-air confirmed)
 
@@ -200,9 +219,10 @@ emulator **fresh-pairs the AC like any new remote** (no address-already-bonded r
 | AC discovers the emulator + walks its full GATT | ✅ |
 | AC **fresh-pairs** the emulator (Limited-Discoverable advert, Just Works legacy) | ✅ |
 | AC **bonds + reconnects** the emulator (Cypress-OUI public address) | ✅ |
-| HID report relay (CCC force-enabled server-side; the AC doesn't subscribe) | ✅ |
+| HID report relay (the AC never subscribes, so the report is pushed unsolicited) | ✅ |
 | `press power` (and all 9 buttons) changes the AC's state, confirmed on-air | ✅ |
-| LAN control: MQTT/HTTP → ESP32 → UART → nRF → AC | ✅ |
+| LAN control: MQTT/HTTP → ESP32 → UART → nRF → AC | ✅ (two-board build) |
+| Same, single board: MQTT/HTTP → ESP32-S3 → BLE → AC | ⏳ untested on the AC |
 
 Connecting **as a central** to the real remote (for a live GATT re-read) is a lottery —
 use a fast 30–50 ms interval with a ~5 s supervision timeout, **no concurrent scan**, and

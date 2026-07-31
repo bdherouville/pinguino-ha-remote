@@ -1,5 +1,5 @@
 #include "bme280.h"
-#include "uart_link.h"
+#include "ble_emu.h"
 #include "mqtt_ha.h"
 #include "pins.h"
 #include <string.h>
@@ -100,7 +100,7 @@ static void task(void *arg)
     for (;;) {
         if (read_once()) {
             ESP_LOGI(TAG, "T=%.2f C  H=%.1f %%  P=%.1f hPa", s_t, s_h, s_p);
-            uart_link_env(s_t, s_h, s_p);        // -> nRF emulator Env Sensing
+            ble_emu_env(s_t, s_h, s_p);        // -> emulator Env Sensing chars
             mqtt_ha_publish_env(s_t, s_h, s_p);  // -> Home Assistant sensors
         }
         vTaskDelay(pdMS_TO_TICKS(BME_PERIOD_S * 1000));

@@ -1,40 +1,173 @@
+# Pinguino, minus a board 🐧
+
+> A fork of [bdherouville/pinguino-ha-remote](https://github.com/bdherouville/pinguino-ha-remote) —
+> same trick, one less chip. **The nRF52840 is gone.** A single ESP32 now pretends to be your
+> air-conditioner's BLE remote *and* talks to Home Assistant.
+
+The upstream project pairs an ESP32 (Wi-Fi, web UI, MQTT) with an nRF52840 (the BLE radio) over
+a UART, because the AC supposedly refused to pair with an ESP32 emulator. Reasonable conclusion.
+It was also wrong.
+
+The original ESP32 attempt failed for three reasons that had nothing to do with the radio: it
+advertised **General** Discoverable when the AC's pairing scan looks for **Limited** (`0x01`), it
+put the Cypress manufacturer data in the primary advertisement instead of the scan response, and
+it never sent an SMP Security Request — this AC waits for the *remote* to ask for security, so
+the link just sat there unpaired until it timed out. Nobody retested it after the discoverable
+flag was understood.
+
+Two capabilities had also been quietly conflated. An ESP32 genuinely **cannot sniff** this
+remote — its radio never locks onto those sparse low-power adverts, which is why reverse
+engineering still wants an nRF Sniffer. But **emulating needs no receive path at all**: you
+advertise, the AC scans and connects to you. Different job, different requirements.
+
+## Does it actually work?
+
+**Pairing: yes, confirmed on air.** An ESP32-C3 bonded with the AC:
+
+```
+I bleemu: advertising as "Ganymede", flags 0x01 (no bond: LIMITED discoverable = pairing mode)
+I bleemu: connected (conn=1)
+I bleemu: encryption change: status=0 encrypted=1 bonded=1
+```
+
+Button relay uses the same report bytes and the same GATT layout as the field-proven nRF
+firmware, so it *should* just work — but it's the newest code path here, so treat it as
+"believed good" rather than "watched it move the unit a hundred times".
+
+Upstream's two-board build remains the belt-and-braces option:
+[release v0.3.0](https://github.com/bdherouville/pinguino-ha-remote/releases/tag/v0.3.0).
+
+## Quick start
+
+```bash
+# 0. What have you actually got in that drawer?
+tools/identify-boards.sh
+
+# 1. Build for your chip
+. ~/esp/esp-idf/export.sh
+cd firmware/esp32_bridge
+idf.py fullclean && idf.py set-target esp32c3      # or esp32s3 / esp32c6 / esp32
+idf.py -p /dev/cu.usbmodemXXXX build flash monitor
+```
+
+First boot raises an open AP called **`Ganymede-Bridge`** → connect → `http://192.168.4.1` →
+pick your Wi-Fi, and set your MQTT broker while you're there.
+
+Then pair: with the AC **plugged in but switched off**, hold **MODE** for ~10 s until the dot on
+its display blinks rapidly. The emulator is already advertising in pairing mode (no bond = Limited
+Discoverable, exactly like a real remote after its own MODE-hold), so they bond within ~60 s. LED
+goes green, and you're driving an air conditioner from a browser.
+
+> ⚠️ **Only one `Ganymede` may advertise at a time.** If you still have the old nRF board powered
+> up nearby, the AC will happily latch onto the wrong one and you'll spend an hour wondering why.
+
+## Which ESP32?
+
+Anything with **both** BLE and Wi-Fi. `board.h` refuses to compile for anything else, which is
+kinder than a mystery at runtime:
+
+| Chip | Status LED | I²C SDA/SCL | LD2410 TX/RX | |
+|---|---|---|---|---|
+| **ESP32-C3** | WS2812 GPIO8 | 5 / 6 | 7 / 10 | ✅ pairing confirmed on this one |
+| **ESP32-S3** | WS2812 GPIO48 | 2 / 1 | 17 / 18 | upstream's reference board |
+| **ESP32-C6** | WS2812 GPIO8 | 7 / 6 | 16 / 17 | untested, should be fine |
+| **ESP32** (classic) | plain LED GPIO2 | 21 / 22 | 17 / 16 | untested |
+
+**The trap:** the **ESP32-S2 has no Bluetooth at all**. It sits between the S1 and S3 in the
+naming and looks like a sibling, but it's Wi-Fi only — it will never pair, no matter what you
+do. Likewise the **H2** (no Wi-Fi) and the **P4** (no radio whatsoever). Run
+`tools/identify-boards.sh` before you burn an evening.
+
+Pins are also editable in the web UI, and the validator now knows each chip's real map — it'll
+refuse the SPI-flash pins that brick the board and the USB pins that cost you the console.
+
+## Wiring
+
+One board. The only wire left is the optional sensor:
+
+```
+BME280        ESP32-C3        (S3: SDA=2 SCL=1)
+  VIN  ──────  3V3            ← 3.3 V, not 5 V
+  GND  ──────  GND
+  SDA  ──────  GPIO5
+  SCL  ──────  GPIO6
+```
+
+Both I²C addresses (0x76/0x77) are probed automatically and internal pull-ups are on, so a bare
+module with no address jumper works.
+
+## When it doesn't pair
+
+The boot log is designed to tell you. Look for these three lines:
+
+```
+I bleemu: GATT: HID service @ 0x0037, report value @ 0x003b (target 0x003b), ENV_PAD_N = 13
+I bleemu: address 00:a0:50:xx:xx:xx (type 0)
+I bleemu: advertising as "Ganymede", flags 0x01 (...)
+```
+
+- **Report handle isn't `0x003b`?** The next log line tells you the exact `ENV_PAD_N` to set in
+  `ble_emu.c`. NimBLE numbers GATT handles in registration order and the built-in GAP/GATT
+  services differ between IDF versions, so this is a one-time, one-number adjustment. It may well
+  pair anyway (the AC discovers by UUID) — if it doesn't, try the suggested value, then try `0`.
+- **`flags 0x06` instead of `0x01`?** It thinks it's already bonded. Hit **Unpair** in the web UI.
+- **`connected` but never `encryption change`?** The AC declined the security request.
+- **`disconnected, reason=62`?** That's HCI `0x3E`, and it's normal here — establishing this link
+  is a lottery even for the real remote. Just retry.
+
+## Credit
+
+All the hard work — the reverse engineering, the protocol, the captures, the whole bridge — is
+[Bertrand d'Hérouville](https://github.com/bdherouville)'s. This fork deletes a board and fixes
+an inverted UP/DOWN in the button table. MIT, same as upstream.
+
+---
+
+<sub>Everything below is the original project README.</sub>
+
 # pinguino-ha-remote
 
-![De'Longhi Pinguino, now connected: web UI, Home Assistant, MQTT/HTTP, ambient sensor, via an emulated BLE remote on an ESP32-S3 + nRF52840 bridge](docs/assets/photos/feature-overview.png)
+![De'Longhi Pinguino, now connected: web UI, Home Assistant, MQTT/HTTP, ambient sensor, via an emulated BLE remote on a single ESP32](docs/assets/photos/feature-overview.png)
 
 Control a **De'Longhi Pinguino air-conditioner** from your LAN / Home Assistant by
 **emulating its manual BLE remote**. Commands from the web UI, MQTT, or Home Assistant bond
 with the AC and **change its state on-air** — no cloud, no IR blaster.
 
-**Status:** working end-to-end. `power`, `up`, `down`, `mode`, `eco`, `timer`, `fan`,
-`silent`, `flap` all act on the AC.
+**Status:** working end-to-end on the two-board build (`power`, `up`, `down`, `mode`, `eco`,
+`timer`, `fan`, `silent`, `flap` all act on the AC). **`main` is now single-board** — the BLE
+emulator runs on the ESP32's own radio, and **pairing is confirmed on air** (an ESP32-C3 bonds
+with the AC). Button relay reuses the proven report bytes and GATT layout but has had less
+mileage. For the most-tested unit, use
+[release v0.3.0](https://github.com/bdherouville/pinguino-ha-remote/releases/tag/v0.3.0).
 
 ## What you get
 
-Two small boards in a stack, plus an optional sensor:
+One small board, plus an optional sensor:
 
 ```
-HA / LAN ──MQTT/HTTP──► ESP32-S3 ──UART──► nRF52840 ──BLE──► AC
+HA / LAN ──MQTT/HTTP──► ESP32-S3 ──BLE──► AC
 ```
 
-- **nRF52840** — the BLE radio: emulates the remote, bonds with the AC.
-- **ESP32-S3** — the Wi-Fi bridge: web UI, MQTT, Home Assistant.
+- **ESP32-S3** — everything: Wi-Fi, web UI, MQTT/Home Assistant, *and* the BLE remote
+  emulator that bonds with the AC.
 - **BME280** — ambient temperature / humidity / pressure (optional), reported to HA.
 
-The BLE has to live on the nRF — the ESP32's radio can't pass the AC's pairing gate. Why, and
-the full protocol, is in [`docs/ganymede_protocol.md`](docs/ganymede_protocol.md).
+The nRF52840 used to be here because the AC was thought to reject an ESP32 emulator. That was
+an artefact of the old ESP32 build advertising the wrong discoverable flag, not a radio
+limitation — the ESP32 still can't *sniff* the remote, but it doesn't need to in order to
+*be* one. Full reasoning and the protocol: [`docs/ganymede_protocol.md`](docs/ganymede_protocol.md).
 
 ## Bill of materials
 
 | Qty | Part | Role | Source |
 |-----|------|------|--------|
-| 1 | **ESP32-S3 SuperMini** (ESP32-S3FH4R2) | Wi-Fi bridge | [AliExpress](https://fr.aliexpress.com/item/1005008807808123.html) |
-| 1 | **nRF52840 SuperMini** (nice!nano-v2-compatible) | BLE emulator | [AliExpress](https://fr.aliexpress.com/item/1005008099333183.html) |
+| 1 | **ESP32-S3 SuperMini** (ESP32-S3FH4R2) | Wi-Fi bridge **+ BLE emulator** | [AliExpress](https://fr.aliexpress.com/item/1005008807808123.html) |
 | 1 | **BME280 / BMP280** module | ambient T/H/P (optional) | [AliExpress](https://fr.aliexpress.com/item/1005007527106667.html) |
 | — | USB cables + jumper wires | power & wiring | — |
 
-*(Reverse-engineering the protocol yourself needs a second nRF52840 as a sniffer — see
-[`tools/nrf_sniffer/`](tools/nrf_sniffer/README.md). A working deployment doesn't.)*
+*(Reverse-engineering the protocol yourself needs an nRF52840 as a sniffer — see
+[`tools/nrf_sniffer/`](tools/nrf_sniffer/README.md). A working deployment doesn't: the ESP32
+can't sniff, but it doesn't need to.)*
 
 | | |
 |---|---|
@@ -44,57 +177,51 @@ the full protocol, is in [`docs/ganymede_protocol.md`](docs/ganymede_protocol.md
 ## Get a working unit
 
 Prebuilt binaries are attached to every
-[**release**](https://github.com/bdherouville/pinguino-ha-remote/releases/latest). Each board
-can be flashed from the release **or** built locally — full steps in the per-board READMEs.
+[**release**](https://github.com/bdherouville/pinguino-ha-remote/releases/latest). Releases up
+to v0.3.0 are the two-board build; the single-board firmware currently has to be built locally.
 
-### 1 · Flash the nRF52840 (BLE emulator)
-
-These boards have **no reset button** — enter the bootloader by bridging the **RST↔GND pads
-twice** (a USB drive `NICENANO` appears), then drag a `.uf2` onto it.
-
-1. **Upgrade the bootloader once** (required): drag `update-nice_nano_bootloader-0.9.2_nosd.uf2`
-   (from the release) — boards ship with an old bootloader that won't boot our app.
-2. **Flash the app**: re-enter the bootloader, drag `ganymede-emulator-nrf52840.uf2`.
-
-Details / local build / cloning a specific remote address →
-[`firmware/nrf52_emulator/README.md`](firmware/nrf52_emulator/README.md).
-
-### 2 · Flash the ESP32-S3 (Wi-Fi bridge)
+### 1 · Flash the ESP32-S3
 
 - **Browser:** open the [web flasher](https://bdherouville.github.io/pinguino-ha-remote/flash/)
-  (Chrome/Edge), plug in, **Install**.
+  (Chrome/Edge), plug in, **Install**. *(Serves the last release — still two-board.)*
 - **CLI:** `esptool --chip esp32s3 -p <PORT> write_flash 0x0 ganymede-bridge-esp32s3.bin`
+- **Local build** (needed for the single-board firmware):
+  `. ~/esp/esp-idf/export.sh && cd firmware/esp32_bridge && idf.py build flash monitor`
 
-Details / local build → [`firmware/esp32_bridge/README.md`](firmware/esp32_bridge/README.md).
+Details → [`firmware/esp32_bridge/README.md`](firmware/esp32_bridge/README.md).
 
-### 3 · Wire the two boards
+### 2 · Wire the sensor (optional)
 
 ```
-ESP32-S3            nRF52840                 ESP32-S3        BME280 (optional)
-  GPIO4 (TX) ─────► P0.20 (RX)                 GPIO1 (SCL) ─► SCL
-  GPIO5 (RX) ◄───── P0.22 (TX)                 GPIO2 (SDA) ◄► SDA
-  GPIO6 (HB) ◄───── P0.24 (heartbeat)          GND ───────── GND
-  GND ───────────── GND
+ESP32-S3        BME280
+  GPIO1 (SCL) ─► SCL
+  GPIO2 (SDA) ◄► SDA
+  GND ───────── GND
 ```
-115200 8N1. Pinouts and board quirks: [`docs/HARDWARE.md`](docs/HARDWARE.md).
+Pinouts and board quirks: [`docs/HARDWARE.md`](docs/HARDWARE.md).
 
-### 4 · Connect the bridge to Wi-Fi
+### 3 · Connect the bridge to Wi-Fi
 
 On first boot the ESP32 raises an open AP **`Ganymede-Bridge`** → connect → open
 `http://192.168.4.1` → pick your Wi-Fi → (optional) set your **MQTT broker** for Home Assistant.
 
-### 5 · Pair with the AC
+### 4 · Pair with the AC
 
 The emulator behaves like a real remote: with **no bond** it automatically advertises in
 **pairing mode** (Limited Discoverable) as `Ganymede` — no button needed.
 
-1. Put the **AC** in pairing mode (Make sure **AC is plugged in and turned off**, then **hold MODE ~10 s**; its display dot blinks rapidly).
-3. They bond within ~60 s. The bridge LED goes **green** = ready to relay.
+1. Put the **AC** in pairing mode (make sure the **AC is plugged in and turned off**, then
+   **hold MODE ~10 s**; its display dot blinks rapidly).
+2. They bond within ~60 s. The board's LED goes **green** = ready to relay.
+
+On the first boot of the single-board firmware, check the serial log for the line reporting the
+HID report handle — it says whether the GATT layout matched the real remote, and if not, exactly
+what to change. See [`firmware/esp32_bridge/README.md`](firmware/esp32_bridge/README.md).
 
 That's it — it **pairs, unpairs, re-pairs, and switches with the original remote exactly like a
 physical remote**, so the address doesn't matter (the prebuilt generic binary works as-is).
 
-### 6 · Control it
+### 5 · Control it
 
 Use the bridge **web UI**, **Home Assistant** (9 buttons + 3 sensors auto-discovered over
 MQTT), or publish to `ganymede/cmd/<button>`.

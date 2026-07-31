@@ -259,7 +259,7 @@
         <div class="statusbar">
           <div class="grp"><span class="sdot" id="dWifi"></span>Wi-Fi</div>
           <div class="grp"><span class="sdot" id="dMqtt"></span>MQTT</div>
-          <div class="grp"><span class="sdot" id="dNrf"></span><span id="scrNrf">nRF</span></div>
+          <div class="grp"><span class="sdot" id="dBle"></span><span id="scrBle">BLE</span></div>
           <div class="grp"><span class="sdot" id="dPres"></span><span id="scrPres">prés.</span></div>
         </div>
       </div>
@@ -297,7 +297,7 @@
     <input id="muser" data-i18n-ph="ph_user" placeholder="Utilisateur (optionnel)">
     <input id="mpass" type="password" data-i18n-ph="ph_passopt" placeholder="Mot de passe (optionnel)">
     <button class="ui" data-i18n="haSave" onclick="saveMqtt()">Enregistrer &amp; connecter</button>
-    <p class="small" data-i18n="haInfo">9 boutons + 3 capteurs + présence + l'état nRF sont publiés en auto-découverte HA.</p>
+    <p class="small" data-i18n="haInfo">9 boutons + 3 capteurs + présence + l'état BLE sont publiés en auto-découverte HA.</p>
   </div>
 
   <div class="card" id="pinsCard">
@@ -306,9 +306,6 @@
     <div class="pins-grid">
       <label>BME280 SDA<input id="p_i2c_sda" inputmode="numeric"></label>
       <label>BME280 SCL<input id="p_i2c_scl" inputmode="numeric"></label>
-      <label>nRF TX<input id="p_nrf_tx" inputmode="numeric"></label>
-      <label>nRF RX<input id="p_nrf_rx" inputmode="numeric"></label>
-      <label>nRF heartbeat<input id="p_nrf_hb" inputmode="numeric"></label>
       <label>LD2410 TX<input id="p_ld_tx" inputmode="numeric"></label>
       <label>LD2410 RX<input id="p_ld_rx" inputmode="numeric"></label>
     </div>
@@ -358,9 +355,9 @@ const I18N = {
   scan:{fr:'Scanner les réseaux',en:'Scan networks',de:'Netzwerke suchen'},
   connect:{fr:'Se connecter',en:'Connect',de:'Verbinden'},
   haSave:{fr:'Enregistrer & connecter',en:'Save & connect',de:'Speichern & verbinden'},
-  haInfo:{fr:"9 boutons + 3 capteurs + présence + l'état nRF sont publiés en auto-découverte HA.",
-          en:'9 buttons + 3 sensors + presence + nRF status are published via HA auto-discovery.',
-          de:'9 Tasten + 3 Sensoren + Präsenz + nRF-Status werden per HA-Autodiscovery veröffentlicht.'},
+  haInfo:{fr:"9 boutons + 3 capteurs + présence + l'état BLE sont publiés en auto-découverte HA.",
+          en:'9 buttons + 3 sensors + presence + BLE status are published via HA auto-discovery.',
+          de:'9 Tasten + 3 Sensoren + Präsenz + BLE-Status werden per HA-Autodiscovery veröffentlicht.'},
   pins:{fr:'Broches / Câblage',en:'Pins / Wiring',de:'Pins / Verkabelung'},
   pinsInfo:{fr:'GPIO de chaque périphérique. Les changements s’appliquent au redémarrage.',
             en:'GPIO for each peripheral. Changes apply on reboot.',
@@ -487,9 +484,9 @@ async function refresh(){
     // screen — status dots
     setDot('dWifi', s.state==='connected' ? 'ok' : (s.state==='connecting' ? 'warn' : ''));
     setDot('dMqtt', s.mqtt ? 'ok' : (s.mqtt_host ? 'warn' : ''));
-    const nrf = s.nrf || 'offline';
-    setDot('dNrf', nrf==='ready' ? 'ok' : (nrf==='offline' ? '' : (nrf==='error' ? 'bad' : 'warn')));
-    $('#scrNrf').textContent = 'nRF '+nrf;
+    const ble = s.ble || 'offline';
+    setDot('dBle', ble==='ready' ? 'ok' : (ble==='offline' ? '' : (ble==='error' ? 'bad' : 'warn')));
+    $('#scrBle').textContent = 'BLE '+ble;
     // LD2410 presence on the remote status: occupied / vacant / sensor absent
     setDot('dPres', s.ld ? (s.presence ? 'ok' : '') : 'warn');
     $('#scrPres').textContent = s.ld ? (s.presence ? t('occ') : t('vac')) : t('sensor');
@@ -563,7 +560,7 @@ async function saveMqtt(){
   setTimeout(refresh, 1800);
 }
 
-const PINF = ['i2c_sda','i2c_scl','nrf_tx','nrf_rx','nrf_hb','ld_tx','ld_rx'];
+const PINF = ['i2c_sda','i2c_scl','ld_tx','ld_rx'];
 async function loadPins(){
   try {
     const p = await (await fetch('/api/pins')).json();

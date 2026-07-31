@@ -1,4 +1,5 @@
 #include "pins.h"
+#include "board.h"
 #include "nvs.h"
 #include "esp_log.h"
 
@@ -7,7 +8,6 @@ static const char *TAG = "pins";
 
 static device_pins_t s = {
     .i2c_sda = PIN_DEF_I2C_SDA, .i2c_scl = PIN_DEF_I2C_SCL,
-    .nrf_tx  = PIN_DEF_NRF_TX,  .nrf_rx  = PIN_DEF_NRF_RX, .nrf_hb = PIN_DEF_NRF_HB,
     .ld_tx   = PIN_DEF_LD_TX,   .ld_rx   = PIN_DEF_LD_RX,
 };
 
@@ -26,35 +26,26 @@ void pins_load(void)
     }
     s.i2c_sda = get_u8(h, "i2c_sda", PIN_DEF_I2C_SDA);
     s.i2c_scl = get_u8(h, "i2c_scl", PIN_DEF_I2C_SCL);
-    s.nrf_tx  = get_u8(h, "nrf_tx",  PIN_DEF_NRF_TX);
-    s.nrf_rx  = get_u8(h, "nrf_rx",  PIN_DEF_NRF_RX);
-    s.nrf_hb  = get_u8(h, "nrf_hb",  PIN_DEF_NRF_HB);
     s.ld_tx   = get_u8(h, "ld_tx",   PIN_DEF_LD_TX);
     s.ld_rx   = get_u8(h, "ld_rx",   PIN_DEF_LD_RX);
     nvs_close(h);
-    ESP_LOGI(TAG, "pins: i2c sda=%d scl=%d | nrf tx=%d rx=%d hb=%d | ld tx=%d rx=%d",
-             s.i2c_sda, s.i2c_scl, s.nrf_tx, s.nrf_rx, s.nrf_hb, s.ld_tx, s.ld_rx);
+    ESP_LOGI(TAG, "pins (%s): i2c sda=%d scl=%d | ld tx=%d rx=%d",
+             BOARD_NAME, s.i2c_sda, s.i2c_scl, s.ld_tx, s.ld_rx);
 }
 
 const device_pins_t *pins_get(void) { return &s; }
 
+// Per-chip rules live in board.h so this file stays target-agnostic. Strapping pins are
+// permitted (usable, just left to the user's judgement); flash, USB-console and non-bonded
+// pins are not, because getting those wrong costs you the board or the serial port.
 bool pins_valid_gpio(int g)
 {
-    // ESP32-S3 has GPIO0..48. 22..25 are not bonded out; 26..32 drive the SPI flash/PSRAM
-    // and must never be repurposed; GPIO48 is the WS2812 status LED (led_status.c, fixed).
-    // Everything else is permitted (incl. strapping pins 0/3/45/46 and the USB pins 19/20 —
-    // usable, just left to the user's judgement).
-    if (g < 0 || g > 48)      return false;
-    if (g >= 22 && g <= 25)   return false;
-    if (g >= 26 && g <= 32)   return false;
-    if (g == 48)              return false;   // owned by the status LED
-    return true;
+    return board_gpio_assignable(g);
 }
 
 bool pins_save(const device_pins_t *p)
 {
-    const uint8_t all[] = { p->i2c_sda, p->i2c_scl, p->nrf_tx, p->nrf_rx,
-                            p->nrf_hb, p->ld_tx, p->ld_rx };
+    const uint8_t all[] = { p->i2c_sda, p->i2c_scl, p->ld_tx, p->ld_rx };
     for (size_t i = 0; i < sizeof(all); i++) {
         if (!pins_valid_gpio(all[i])) {
             ESP_LOGW(TAG, "rejecting save: GPIO%d is not usable", all[i]);
@@ -74,9 +65,6 @@ bool pins_save(const device_pins_t *p)
     // success — otherwise the device could come back on a mixed pin map after reboot.
     esp_err_t e = nvs_set_u8(h, "i2c_sda", p->i2c_sda);
     if (e == ESP_OK) e = nvs_set_u8(h, "i2c_scl", p->i2c_scl);
-    if (e == ESP_OK) e = nvs_set_u8(h, "nrf_tx",  p->nrf_tx);
-    if (e == ESP_OK) e = nvs_set_u8(h, "nrf_rx",  p->nrf_rx);
-    if (e == ESP_OK) e = nvs_set_u8(h, "nrf_hb",  p->nrf_hb);
     if (e == ESP_OK) e = nvs_set_u8(h, "ld_tx",   p->ld_tx);
     if (e == ESP_OK) e = nvs_set_u8(h, "ld_rx",   p->ld_rx);
     if (e == ESP_OK) e = nvs_commit(h);

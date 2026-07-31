@@ -1,6 +1,6 @@
 #include "web.h"
 #include "wifi_mgr.h"
-#include "uart_link.h"
+#include "ble_emu.h"
 #include "mqtt_ha.h"
 #include "bme280.h"
 #include "pins.h"
@@ -80,17 +80,17 @@ static esp_err_t h_status(httpd_req_t *req)
     const char *actimer = ac.timer_state == TIMER_RUN ? "run" : ac.timer_state == TIMER_EDIT ? "edit" : "off";
     char buf[700];
     snprintf(buf, sizeof(buf),
-        "{\"state\":\"%s\",\"ssid\":\"%s\",\"ip\":\"%s\",\"ap\":\"%s\",\"has_creds\":%s,\"nrf\":\"%s\","
+        "{\"state\":\"%s\",\"ssid\":\"%s\",\"ip\":\"%s\",\"ap\":\"%s\",\"has_creds\":%s,\"ble\":\"%s\","
         "\"mqtt\":%s,\"mqtt_host\":\"%s\",\"bme\":%s,\"temp\":%.2f,\"hum\":%.1f,\"hpa\":%.1f,"
         "\"ld\":%s,\"presence\":%s,\"presence_s\":%lu,\"mute_s\":%d,"
         "\"ac\":{\"on\":%s,\"mode\":\"%s\",\"temp\":%d,\"fan\":\"%s\",\"silent\":%s,\"eco\":%s,\"swing\":%s,"
         "\"timer\":\"%s\",\"timer_h\":%.1f}}",
         wifi_mgr_state_str(), wifi_mgr_ssid(), wifi_mgr_ip(), wifi_mgr_ap_ssid(),
-        wifi_mgr_has_creds() ? "true" : "false", uart_link_status(),
+        wifi_mgr_has_creds() ? "true" : "false", ble_emu_status(),
         mqtt_ha_connected() ? "true" : "false", mqtt_ha_host(),
         bme ? "true" : "false", t, h, p,
         ld2410_alive() ? "true" : "false", rules_presence() ? "true" : "false",
-        (unsigned long)rules_presence_secs(), uart_link_mute_secs(),
+        (unsigned long)rules_presence_secs(), ble_emu_mute_secs(),
         ac.on ? "true" : "false", acmode, ac.temp_c, ac_fan_str(ac.fan),
         ac.silent ? "true" : "false", ac.eco ? "true" : "false", ac.swing ? "true" : "false",
         actimer, ac.timer_halfh / 2.0);
@@ -134,10 +134,10 @@ static esp_err_t h_press(httpd_req_t *req)
         char q[48]; if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK)
             httpd_query_key_value(q, "btn", btn, sizeof(btn));
     }
-    // uart_link_press() atomically enforces the inter-press gap (the AC's touch debounce): a tap
+    // ble_emu_press() atomically enforces the inter-press gap (the AC's touch debounce): a tap
     // closer than that to any prior press — including an in-flight HA worker press — is coalesced
     // and returns false here, changing nothing, so the model can't run ahead of the unit.
-    bool ok = btn[0] && uart_link_press(btn);
+    bool ok = btn[0] && ble_emu_press(btn);
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }
@@ -146,7 +146,7 @@ static esp_err_t h_pairing(httpd_req_t *req)
 {
     // /api/unpair clears the bond and re-enters pairing mode; /api/pair re-kicks advertising.
     bool unpair = strstr(req->uri, "unpair") != NULL;
-    uart_link_pairing(unpair);
+    ble_emu_pairing(unpair);
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
@@ -170,9 +170,8 @@ static esp_err_t h_pins(httpd_req_t *req)
     const device_pins_t *p = pins_get();
     char buf[200];
     snprintf(buf, sizeof(buf),
-        "{\"i2c_sda\":%d,\"i2c_scl\":%d,\"nrf_tx\":%d,\"nrf_rx\":%d,\"nrf_hb\":%d,"
-        "\"ld_tx\":%d,\"ld_rx\":%d}",
-        p->i2c_sda, p->i2c_scl, p->nrf_tx, p->nrf_rx, p->nrf_hb, p->ld_tx, p->ld_rx);
+        "{\"i2c_sda\":%d,\"i2c_scl\":%d,\"ld_tx\":%d,\"ld_rx\":%d}",
+        p->i2c_sda, p->i2c_scl, p->ld_tx, p->ld_rx);
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, buf);
 }
@@ -198,9 +197,6 @@ static esp_err_t h_pins_save(httpd_req_t *req)
     bool bad = false;
     bad |= form_pin(body, "i2c_sda", &p.i2c_sda) < 0;
     bad |= form_pin(body, "i2c_scl", &p.i2c_scl) < 0;
-    bad |= form_pin(body, "nrf_tx",  &p.nrf_tx)  < 0;
-    bad |= form_pin(body, "nrf_rx",  &p.nrf_rx)  < 0;
-    bad |= form_pin(body, "nrf_hb",  &p.nrf_hb)  < 0;
     bad |= form_pin(body, "ld_tx",   &p.ld_tx)   < 0;
     bad |= form_pin(body, "ld_rx",   &p.ld_rx)   < 0;
     bool ok = !bad && pins_save(&p);  // pins_save re-validates as defence in depth
@@ -317,7 +313,7 @@ static esp_err_t h_mute(httpd_req_t *req)
     if (form_get(body, "s", v, sizeof(v)) && v[0]) secs = atoi(v);
     if (secs < 0) secs = 0;
     if (secs > 300) secs = 300;
-    uart_link_mute(secs);
+    ble_emu_mute(secs);
     char out[32]; snprintf(out, sizeof(out), "{\"ok\":true,\"s\":%d}", secs);
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, out);
@@ -349,6 +345,22 @@ void web_start(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.max_uri_handlers = 24;
     cfg.lru_purge_enable = true;
+
+    // This board shares one 2.4 GHz radio between Wi-Fi and the AC's BLE link, and it is
+    // usually mounted wherever the air conditioner is rather than wherever the signal is good.
+    // On a weak link the default 5 s socket timeouts expire mid-response and the handler dies
+    // with "error in send : 11" (EAGAIN) — the page then half-loads and the browser retries,
+    // which looks like the UI being extremely slow. Being patient is free: these timeouts only
+    // bound how long a *stalled* transfer waits.
+    cfg.send_wait_timeout = 15;
+    cfg.recv_wait_timeout = 15;
+
+    // Socket budget. The HTTP server needs max_open_sockets + 3 (it reserves a listener and two
+    // UDP control sockets) and refuses to start if that exceeds CONFIG_LWIP_MAX_SOCKETS. The
+    // default of 7 would claim all 10 sockets configured for the C3, leaving none for the MQTT
+    // client or DNS. Four is ample for one page plus its /api/status polling, and leaves three.
+    cfg.max_open_sockets = 4;
+
     httpd_handle_t s = NULL;
     if (httpd_start(&s, &cfg) != ESP_OK) { ESP_LOGE(TAG, "httpd start failed"); return; }
     reg(s, "/", HTTP_GET, h_index);

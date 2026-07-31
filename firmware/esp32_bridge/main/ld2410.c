@@ -7,7 +7,9 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 
-#define LD_UART  UART_NUM_2
+// UART1, not UART2: the ESP32-C3 only has UART0/1 and the C6 only two high-power UARTs, so
+// UART_NUM_2 does not exist there. UART1 was the nRF link and is free on every target now.
+#define LD_UART  UART_NUM_1
 #define LD_BAUD  256000          // LD2410 factory default
 #define LD_ALIVE_TIMEOUT_MS 2000 // no valid frame for this long -> sensor considered absent
 
@@ -79,12 +81,12 @@ void ld2410_init(void)
     if (uart_driver_install(LD_UART, 1024, 0, 0, NULL, 0) != ESP_OK ||
         uart_param_config(LD_UART, &cfg) != ESP_OK ||
         uart_set_pin(LD_UART, pn->ld_tx, pn->ld_rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
-        ESP_LOGE(TAG, "UART2 init failed");
+        ESP_LOGE(TAG, "LD2410 UART init failed");
         return;
     }
     s_last_frame_us = esp_timer_get_time() - (int64_t)(LD_ALIVE_TIMEOUT_MS + 1) * 1000;
     xTaskCreate(task, "ld2410", 3072, NULL, 4, NULL);
-    ESP_LOGI(TAG, "LD2410 on UART2 TX=%d RX=%d @ %d", pn->ld_tx, pn->ld_rx, LD_BAUD);
+    ESP_LOGI(TAG, "LD2410 on UART1 TX=%d RX=%d @ %d", pn->ld_tx, pn->ld_rx, LD_BAUD);
 }
 
 bool ld2410_present(void) { return s_present; }

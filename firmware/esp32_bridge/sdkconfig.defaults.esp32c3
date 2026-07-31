@@ -1,0 +1,44 @@
+# ESP32-C3 — applied on top of sdkconfig.defaults.
+#
+# The C3 is the tight one: single-core RISC-V with ~400 KB SRAM and NO PSRAM, and it has to hold
+# Wi-Fi + NimBLE + the HTTP server + an MQTT client at the same time. Flash is not the problem
+# (4 MB is plenty); RAM is. The trims below buy back tens of KB of heap without changing
+# anything that matters for this workload — a few small HTTP responses, one MQTT connection and
+# one BLE link carrying 8-byte HID reports.
+#
+# Watch the "Free heap" figure at boot. If it drops under ~40 KB once Wi-Fi associates, cut
+# ESP_WIFI_DYNAMIC_RX_BUFFER_NUM further before touching anything else.
+
+# Console on the native USB-Serial/JTAG (GPIO18/19) — same single-port flow as the S3.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# ---- Wi-Fi buffers: the single biggest RAM consumer ----
+# Defaults are tuned for throughput. Each static RX buffer is ~1.6 KB, so this is where the
+# savings are. (ESP_WIFI_STATIC_TX_BUFFER_NUM is deliberately absent: it only applies when the
+# TX buffer type is static, and the default is dynamic, so setting it would be silently ignored.)
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_TX_BA_WIN=6
+CONFIG_ESP_WIFI_RX_BA_WIN=6
+
+# ---- lwIP ----
+# Socket budget, and it is tight enough to matter: the HTTP server takes
+# max_open_sockets + 3 (web.c sets 4, so 7), MQTT takes 1, DNS 1. That is 9 of 10.
+# If you raise web.c's max_open_sockets, raise this by the same amount or httpd refuses to
+# start with "max_open_sockets is too large".
+CONFIG_LWIP_MAX_SOCKETS=10
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
+CONFIG_LWIP_TCP_WND_DEFAULT=2880
+
+# ---- NimBLE ----
+# One connection, tiny ATT payloads. The default is 24 blocks on ESP controllers; halving it is
+# still far more than a remote control needs. Note the option name has an underscore before the
+# 1 (BT_NIMBLE_MSYS_1_..., not MSYS1_...) — the wrong spelling is silently ignored.
+CONFIG_BT_NIMBLE_MSYS_1_BLOCK_COUNT=12
+
+# Keep INFO logging on: the emulator's boot self-check (GATT handle map) and the pairing
+# progress lines are all at INFO, and they are how you diagnose a failed pairing. Verbose
+# logging over USB-Serial/JTAG does steal time from the BLE link on this single-core chip, so
+# drop to CONFIG_LOG_DEFAULT_LEVEL_WARN=y once it is working if you see timing problems.
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y

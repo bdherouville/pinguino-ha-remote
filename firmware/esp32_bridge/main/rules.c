@@ -2,7 +2,7 @@
 #include "ld2410.h"
 #include "ac_state.h"
 #include "ac_cmd.h"
-#include "uart_link.h"
+#include "ble_emu.h"
 #include "mqtt_ha.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -54,7 +54,7 @@ static void eval_task(void *arg)
         int  pres_pub = -1;            // -1 none, 0 mark unavailable, 1 publish `raw`
         char to_apply[RULES_MAX][RULE_TARGET_LEN];
         int  napply = 0;
-        bool ready = uart_link_ready();   // only fire (and disarm) when the AC is reachable
+        bool ready = ble_emu_ready();   // only fire (and disarm) when the AC is reachable
 
         LOCK();
         if (!alive) {                  // sensor offline: freeze automation, re-arm everything
